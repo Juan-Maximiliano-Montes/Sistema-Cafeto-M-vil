@@ -2,20 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onIdTokenChanged } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
 import Login from '../screens/Login';
-import SignUp from '../screens/SignUp';
+import Registro from '../screens/Registro';
+import Verificacion from '../screens/Verificacion';
 import Home from '../screens/Home';
 
 const Stack = createStackNavigator();
 
 export default function Navigation() {
   const [user, setUser] = useState(undefined);
+  const [verificado, setVerificado] = useState(false);
 
   useEffect(() => {
     if (!auth) return;
-    return onAuthStateChanged(auth, setUser);
+    return onIdTokenChanged(auth, (usuario) => {
+      setUser(usuario);
+      setVerificado(Boolean(usuario && (usuario.emailVerified || usuario.isAnonymous)));
+    });
   }, []);
 
   if (!isFirebaseConfigured) {
@@ -34,14 +39,16 @@ export default function Navigation() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
-        {user ? (
-          <Stack.Screen name="Home" component={Home} options={{ title: 'Inicio' }} />
-        ) : (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!user ? (
           <>
-            <Stack.Screen name="Login" component={Login} options={{ title: 'Iniciar sesión' }} />
-            <Stack.Screen name="SignUp" component={SignUp} options={{ title: 'Registro' }} />
+            <Stack.Screen name="Login" component={Login} />
+            <Stack.Screen name="Registro" component={Registro} />
           </>
+        ) : !verificado ? (
+          <Stack.Screen name="Verificacion" component={Verificacion} />
+        ) : (
+          <Stack.Screen name="Home" component={Home} options={{ headerShown: true, title: 'Inicio' }} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
