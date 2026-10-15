@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -8,20 +8,43 @@ import Login from '../screens/Login';
 import Registro from '../screens/Registro';
 import Verificacion from '../screens/Verificacion';
 import Pestanas from './Pestanas';
+import { escucharEntrada, hayEntrada, reiniciarEntrada } from '../src/sesion/entrada';
 
 const Stack = createStackNavigator();
 
 export default function Navigation() {
   const [user, setUser] = useState(undefined);
-  const [verificado, setVerificado] = useState(false);
+  const [entrada, setEntrada] = useState(hayEntrada());
+  const entroYaVerificado = useRef(false);
+  const uidPrevio = useRef(null);
+
+  useEffect(() => escucharEntrada(setEntrada), []);
 
   useEffect(() => {
     if (!auth) return;
     return onIdTokenChanged(auth, (usuario) => {
+      if (!usuario) {
+        uidPrevio.current = null;
+        entroYaVerificado.current = false;
+        reiniciarEntrada();
+        setUser(null);
+        return;
+      }
+
+      if (uidPrevio.current !== usuario.uid) {
+        uidPrevio.current = usuario.uid;
+        entroYaVerificado.current = Boolean(usuario.emailVerified || usuario.isAnonymous);
+      }
+
       setUser(usuario);
-      setVerificado(Boolean(usuario && (usuario.emailVerified || usuario.isAnonymous)));
     });
   }, []);
+
+  const verificado = Boolean(
+    user &&
+      (user.isAnonymous ||
+        (user.emailVerified && (entroYaVerificado.current || entrada)))
+  );
 
   if (!isFirebaseConfigured) {
     return (

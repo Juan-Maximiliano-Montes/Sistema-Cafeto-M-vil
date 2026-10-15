@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
@@ -9,6 +10,7 @@ import { deleteUser, sendEmailVerification, signOut } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
+import { marcarEntrada } from '../src/sesion/entrada';
 
 const ESPERA_REENVIO = 60;
 const INTERVALO_CONSULTA = 4000;
@@ -30,6 +32,7 @@ export default function Verificacion() {
   const [verificado, setVerificado] = useState(false);
   const [segundos, setSegundos] = useState(ESPERA_REENVIO);
   const [entrando, setEntrando] = useState(false);
+  const yaAbrioCorreo = useRef(false);
 
   const { colores, isotipo, cambiarTema } = useTema();
   const { avisar } = useAviso();
@@ -54,6 +57,66 @@ export default function Verificacion() {
     }, INTERVALO_CONSULTA);
     return () => clearInterval(consulta);
   }, [verificado]);
+
+  const abrirCorreo = async () => {
+    if (Platform.OS === 'android' && yaAbrioCorreo.current) {
+      avisar(
+        'advertencia',
+        'Ya abrimos tu correo',
+        'Buscá la app de correo en tu celular. Apenas toques el enlace, esta pantalla se actualiza sola.'
+      );
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      try {
+        const lanzamiento = IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
+          category: 'android.intent.category.APP_EMAIL',
+          flags: 268435456,
+        });
+
+        lanzamiento.catch(() => null);
+
+        const resultado = await Promise.race([
+          lanzamiento.then(() => 'abrio').catch((error) => error),
+          new Promise((resolver) => setTimeout(() => resolver('abrio'), 600)),
+        ]);
+
+        if (resultado === 'abrio') {
+          yaAbrioCorreo.current = true;
+          return;
+        }
+      } catch (error) {
+        // si no se pudo, sigue con las opciones de abajo
+      }
+    }
+
+    const dominio = (correo ?? '').split('@')[1]?.toLowerCase() ?? '';
+    const destinos = [];
+
+    if (dominio.includes('gmail')) {
+      destinos.push('googlegmail://', 'https://mail.google.com/');
+    } else if (dominio.includes('outlook') || dominio.includes('hotmail') || dominio.includes('live')) {
+      destinos.push('ms-outlook://', 'https://outlook.live.com/mail/');
+    } else if (dominio.includes('yahoo')) {
+      destinos.push('https://mail.yahoo.com/');
+    }
+
+    destinos.push('message://', 'mailto:');
+
+    for (const destino of destinos) {
+      try {
+        if (await Linking.canOpenURL(destino)) {
+          await Linking.openURL(destino);
+          return;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    avisar('advertencia', 'No pudimos abrir tu correo', 'Abrilo vos y buscá el mensaje de Cafeto. Si no está, mirá en spam.');
+  };
 
   const reenviarEnlace = async () => {
     try {
@@ -96,6 +159,7 @@ export default function Verificacion() {
 
   const empezar = async () => {
     setEntrando(true);
+    marcarEntrada();
     await auth.currentUser.getIdToken(true);
   };
 
@@ -112,14 +176,10 @@ export default function Verificacion() {
       <StatusBar style={colores.barraEstado} />
       <ScrollView contentContainerStyle={estilos.contenido} showsVerticalScrollIndicator={false}>
         <View style={estilos.encabezado}>
-          {verificado ? (
-            <View style={estilos.huecoEncabezado} />
-          ) : (
-            <Pressable style={estilos.chip} onPress={() => signOut(auth)}>
-              <Text style={estilos.textoChip}>Salir</Text>
-              <Feather name="log-out" size={14} color={colores.textoSecundario} />
-            </Pressable>
-          )}
+          <Pressable style={estilos.chip} onPress={() => signOut(auth)}>
+            <Text style={estilos.textoChip}>Salir</Text>
+            <Feather name="log-out" size={14} color={colores.textoSecundario} />
+          </Pressable>
           <Image source={isotipo} style={estilos.isotipo} resizeMode="contain" />
           <View style={estilos.huecoEncabezado}>
             <Pressable style={estilos.botonTema} onPress={cambiarTema}>
@@ -136,6 +196,17 @@ export default function Verificacion() {
             </View>
             <Text style={estilos.titulo}>¡Cuenta verificada!</Text>
             <Text style={estilos.texto}>Ya podés sumar puntos en cada compra.</Text>
+
+            <View style={estilos.tarjetaPromo}>
+              <Feather name="gift" size={20} color={colores.marca} />
+              <View style={estilos.textosTarjeta}>
+                <Text style={estilos.tituloTarjeta}>Arrancás como Bronze</Text>
+                <Text style={estilos.detalleTarjeta}>
+                  Mostrá tu QR en la caja y sumá puntos desde tu primera compra.
+                </Text>
+              </View>
+            </View>
+
             <View style={estilos.espaciador} />
             <Pressable
               style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.presionado]}
@@ -143,10 +214,21 @@ export default function Verificacion() {
               disabled={entrando}
             >
               {entrando ? (
-                <ActivityIndicator color={colores.textoSobreMarca} />
+                <View style={estilos.filaCargando}>
+                  <ActivityIndicator color={colores.textoSobreMarca} />
+                  <Text style={estilos.textoBotonPrincipal}>Entrando...</Text>
+                </View>
               ) : (
-                <Text style={estilos.textoBotonPrincipal}>Empezar</Text>
+                <Text style={estilos.textoBotonPrincipal}>Entrar a mi cuenta</Text>
               )}
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [estilos.botonSecundario, pressed && estilos.presionado]}
+              onPress={() => signOut(auth)}
+              disabled={entrando}
+            >
+              <Text style={estilos.textoBotonSecundario}>Ahora no</Text>
             </Pressable>
           </>
         ) : (
@@ -163,6 +245,7 @@ export default function Verificacion() {
                 <Text style={[estilos.textoChico, estilos.enlace]}>Corregilo</Text>
               </Pressable>
             </View>
+            <Text style={estilos.avisoSpam}>Si no lo ves, revisá la carpeta de spam.</Text>
 
             <View style={estilos.tarjetaExito}>
               <Feather name="check" size={18} color={colores.exito} />
@@ -175,6 +258,13 @@ export default function Verificacion() {
             </View>
 
             <Pressable
+              style={({ pressed }) => [estilos.botonPrincipal, estilos.separado, pressed && estilos.presionado]}
+              onPress={abrirCorreo}
+            >
+              <Text style={estilos.textoBotonPrincipal}>Abrir mi correo</Text>
+            </Pressable>
+
+            <Pressable
               style={({ pressed }) => [estilos.botonSecundario, pressed && estilos.presionado]}
               onPress={reenviarEnlace}
               disabled={segundos > 0}
@@ -185,7 +275,7 @@ export default function Verificacion() {
             </Pressable>
 
             <View style={estilos.espaciador} />
-            <Text style={estilos.pie}>¿No te llegó? Revisá la carpeta de spam.</Text>
+            <Text style={estilos.pie}>Apenas toques el enlace, esta pantalla se actualiza sola.</Text>
           </>
         )}
       </ScrollView>
@@ -329,6 +419,17 @@ function crearEstilos(c) {
       fontSize: 13.5,
       lineHeight: 19,
       color: c.textoSecundario,
+    },
+    separado: { marginTop: 22 },
+    filaCargando: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    tarjetaPromo: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 22,
+      backgroundColor: c.marcaSuave, borderWidth: 1, borderColor: c.bordeAdvertencia,
+      borderRadius: 16, padding: 16,
+    },
+    avisoSpam: {
+      fontFamily: 'Inter_400Regular', fontSize: 13, color: c.textoTenue,
+      textAlign: 'center', marginTop: 10,
     },
     botonPrincipal: {
       height: 54,

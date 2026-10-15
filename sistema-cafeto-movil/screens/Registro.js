@@ -581,9 +581,13 @@ export default function Registro({ navigation }) {
               <View style={estilos.espaciador} />
 
               <Pressable
-                style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.presionado]}
+                style={({ pressed }) => [
+                  estilos.botonPrincipal,
+                  !creando && !aceptaTerminos && estilos.botonDeshabilitado,
+                  pressed && estilos.presionado,
+                ]}
                 onPress={crearCuenta}
-                disabled={creando}
+                disabled={creando || !aceptaTerminos}
               >
                 {creando ? (
                   <View style={estilos.filaCargando}>
@@ -591,7 +595,9 @@ export default function Registro({ navigation }) {
                     <Text style={estilos.textoBotonPrincipal}>Creando cuenta...</Text>
                   </View>
                 ) : (
-                  <Text style={estilos.textoBotonPrincipal}>Crear cuenta</Text>
+                  <Text style={[estilos.textoBotonPrincipal, !aceptaTerminos && estilos.textoBotonDeshabilitado]}>
+                    Crear cuenta
+                  </Text>
                 )}
               </Pressable>
               {pie}
