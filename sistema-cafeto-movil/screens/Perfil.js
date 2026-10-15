@@ -10,6 +10,13 @@ import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import { cliente, coloresCategoria, movimientos } from '../src/datos/ejemplo';
 
+function formatearEntradaFecha(texto) {
+  const digitos = texto.replace(/\D/g, '').slice(0, 8);
+  if (digitos.length <= 2) return digitos;
+  if (digitos.length <= 4) return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
+  return `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
+}
+
 const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 function formatearCumple(fecha) {
@@ -195,8 +202,9 @@ export default function Perfil() {
             <TextInput
               style={estilos.campo}
               value={borrador.cumple}
-              onChangeText={(texto) => setBorrador({ ...borrador, cumple: texto })}
+              onChangeText={(texto) => setBorrador({ ...borrador, cumple: formatearEntradaFecha(texto) })}
               keyboardType="numeric"
+              maxLength={10}
               placeholder="21/01/1990"
               placeholderTextColor={colores.textoTenue}
             />
