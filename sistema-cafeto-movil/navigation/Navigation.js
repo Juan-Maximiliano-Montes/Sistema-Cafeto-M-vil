@@ -7,7 +7,7 @@ import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
 import Login from '../screens/Login';
 import Registro from '../screens/Registro';
 import Verificacion from '../screens/Verificacion';
-import Home from '../screens/Home';
+import Pestanas from './Pestanas';
 
 const Stack = createStackNavigator();
 
@@ -48,7 +48,7 @@ export default function Navigation() {
         ) : !verificado ? (
           <Stack.Screen name="Verificacion" component={Verificacion} />
         ) : (
-          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="Home" component={Pestanas} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

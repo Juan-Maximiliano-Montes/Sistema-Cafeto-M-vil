@@ -19,6 +19,7 @@ import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-goog
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendPasswordResetEmail, signInAnonymously, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
+import SinConexion from './SinConexion';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 
@@ -41,6 +42,7 @@ export default function Login({ navigation, route }) {
   const [errorCorreo, setErrorCorreo] = useState('');
   const [errorContrasena, setErrorContrasena] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [sinConexion, setSinConexion] = useState(false);
 
   const { colores, logo, cambiarTema } = useTema();
   const { avisar } = useAviso();
@@ -143,7 +145,12 @@ export default function Login({ navigation, route }) {
       await guardarPreferenciaRecordarme();
       await signInWithEmailAndPassword(auth, correo.trim(), contrasena);
     } catch (error) {
-      mostrarErrorDeFirebase(error);
+      if (error?.code === 'auth/network-request-failed') {
+        setSinConexion(true);
+      } else {
+        mostrarErrorDeFirebase(error);
+      }
+    } finally {
       setCargando(false);
     }
   };
@@ -167,7 +174,12 @@ export default function Login({ navigation, route }) {
     try {
       await signInAnonymously(auth);
     } catch (error) {
-      mostrarErrorDeFirebase(error);
+      if (error?.code === 'auth/network-request-failed') {
+        setSinConexion(true);
+      } else {
+        mostrarErrorDeFirebase(error);
+      }
+    } finally {
       setCargando(false);
     }
   };
@@ -182,6 +194,10 @@ export default function Login({ navigation, route }) {
         <ActivityIndicator size="large" color={colores.marca} />
       </View>
     );
+  }
+
+  if (sinConexion) {
+    return <SinConexion alReintentar={() => setSinConexion(false)} />;
   }
 
   return (
@@ -303,7 +319,7 @@ export default function Login({ navigation, route }) {
           <Pressable
             style={({ pressed }) => [
               estilos.botonPrincipal,
-              !formularioCompleto && estilos.botonDeshabilitado,
+              !cargando && !formularioCompleto && estilos.botonDeshabilitado,
               pressed && estilos.presionado,
             ]}
             onPress={iniciarSesion}

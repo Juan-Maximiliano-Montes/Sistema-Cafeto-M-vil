@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -22,9 +22,9 @@ const categorias = [
   { nombre: 'Gold', desde: 'Desde 5.000 puntos', tasa: '1 pto c/ $67' },
 ];
 
-function BotonAccion({ icono, texto, subtexto, secundario, colores, estilos }) {
+function BotonAccion({ icono, texto, subtexto, secundario, alPresionar, colores, estilos }) {
   return (
-    <Pressable style={[estilos.botonAccion, secundario && estilos.botonAccionSecundario]}>
+    <Pressable style={[estilos.botonAccion, secundario && estilos.botonAccionSecundario]} onPress={alPresionar}>
       <Ionicons name={icono} size={28} color={secundario ? colores.marca : colores.textoSobreMarca} />
       <View>
         <Text style={[estilos.botonAccionTexto, secundario && estilos.textoNormal]}>{texto}</Text>
@@ -34,7 +34,7 @@ function BotonAccion({ icono, texto, subtexto, secundario, colores, estilos }) {
   );
 }
 
-function ContenidoInvitado({ colores, estilos }) {
+function ContenidoInvitado({ colores, estilos, navigation }) {
   const irARegistro = async () => {
     await AsyncStorage.setItem('cafeto:abrirRegistro', 'si');
     await signOut(auth);
@@ -74,14 +74,42 @@ function ContenidoInvitado({ colores, estilos }) {
       </View>
 
       <View style={estilos.acciones}>
-        <BotonAccion icono="gift-outline" texto="Ver beneficios" subtexto="Qué podés canjear" secundario colores={colores} estilos={estilos} />
-        <BotonAccion icono="book-outline" texto="Ver la carta" subtexto="Productos y precios" secundario colores={colores} estilos={estilos} />
+        <BotonAccion icono="gift-outline" texto="Ver beneficios" subtexto="Qué podés canjear" secundario alPresionar={() => navigation.navigate('Beneficios')} colores={colores} estilos={estilos} />
+        <BotonAccion icono="book-outline" texto="Ver la carta" subtexto="Productos y precios" secundario alPresionar={() => navigation.navigate('Carta')} colores={colores} estilos={estilos} />
       </View>
     </>
   );
 }
 
-export default function Home() {
+function Esqueleto({ estilos }) {
+  const opacidad = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const animacion = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacidad, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacidad, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    animacion.start();
+    return () => animacion.stop();
+  }, [opacidad]);
+
+  return (
+    <Animated.View style={[estilos.esqueleto, { opacity: opacidad }]}>
+      <View style={[estilos.bloque, { height: 150 }]} />
+      <View style={estilos.acciones}>
+        <View style={[estilos.bloque, { flex: 1, height: 118 }]} />
+        <View style={[estilos.bloque, { flex: 1, height: 118 }]} />
+      </View>
+      <View style={[estilos.bloque, { width: '50%', height: 18 }]} />
+      <View style={[estilos.bloque, { height: 64 }]} />
+      <View style={[estilos.bloque, { height: 64 }]} />
+    </Animated.View>
+  );
+}
+
+export default function Home({ navigation }) {
   const { colores, isotipo, cambiarTema } = useTema();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
   const [fuentesCargadas] = useFonts({
@@ -91,6 +119,13 @@ export default function Home() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    const espera = setTimeout(() => setCargando(false), 1200);
+    return () => clearTimeout(espera);
+  }, []);
 
   const usuario = auth.currentUser;
   const esInvitado = usuario?.isAnonymous ?? true;
@@ -124,7 +159,7 @@ export default function Home() {
   }
 
   return (
-    <SafeAreaView style={estilos.pantalla}>
+    <SafeAreaView style={estilos.pantalla} edges={['top']}>
       <StatusBar style={colores.barraEstado} />
       <ScrollView contentContainerStyle={estilos.contenido} showsVerticalScrollIndicator={false}>
         <View style={estilos.encabezado}>
@@ -144,13 +179,12 @@ export default function Home() {
             <Pressable style={estilos.botonRedondo} onPress={cambiarTema}>
               <Ionicons name="contrast" size={20} color={colores.texto} />
             </Pressable>
-            <Pressable style={estilos.botonRedondo} onPress={() => signOut(auth)}>
-              <Feather name="log-out" size={18} color={colores.texto} />
-            </Pressable>
           </View>
         </View>
-        {esInvitado ? (
-          <ContenidoInvitado colores={colores} estilos={estilos} />
+        {cargando ? (
+          <Esqueleto estilos={estilos} />
+        ) : esInvitado ? (
+          <ContenidoInvitado colores={colores} estilos={estilos} navigation={navigation} />
         ) : (
           <>
         <View style={estilos.tarjeta}>
@@ -159,7 +193,7 @@ export default function Home() {
               <Ionicons name="star" size={12} color={colores.textoSobreMarca} />
               <Text style={estilos.chipTexto}>{cliente.categoria.toUpperCase()}</Text>
             </View>
-            <Text style={estilos.enlace}>Ver historial</Text>
+            <Text style={estilos.enlace} onPress={() => navigation.navigate('Perfil')}>Ver historial</Text>
           </View>
           <View style={estilos.filaPuntos}>
             <Text style={estilos.puntos}>{cliente.puntosDisponibles}</Text>
@@ -176,13 +210,13 @@ export default function Home() {
           </View>
         </View>
         <View style={estilos.acciones}>
-          <BotonAccion icono="qr-code-outline" texto="Mi QR" subtexto="Sumá en la caja" colores={colores} estilos={estilos} />
-          <BotonAccion icono="gift-outline" texto="Canjear" subtexto="Usá tus puntos" colores={colores} estilos={estilos} />
+          <BotonAccion icono="qr-code-outline" texto="Mi QR" subtexto="Sumá en la caja" alPresionar={() => navigation.navigate('Perfil')} colores={colores} estilos={estilos} />
+          <BotonAccion icono="gift-outline" texto="Canjear" subtexto="Usá tus puntos" alPresionar={() => navigation.navigate('Beneficios')} colores={colores} estilos={estilos} />
         </View>
         <View style={estilos.seccion}>
           <View style={estilos.tarjetaFila}>
             <Text style={estilos.tituloSeccion}>Tus beneficios {cliente.categoria}</Text>
-            <Text style={estilos.enlace}>Ver todos</Text>
+            <Text style={estilos.enlace} onPress={() => navigation.navigate('Beneficios')}>Ver todos</Text>
           </View>
           {beneficios.map((beneficio) => {
             const alcanza = cliente.puntosDisponibles >= beneficio.puntos;
@@ -200,7 +234,7 @@ export default function Home() {
                 ) : (
                   <Pressable style={[estilos.botonCanje, !alcanza && estilos.botonCanjeOff]} disabled={!alcanza}>
                     <Text style={[estilos.botonCanjeTexto, !alcanza && estilos.textoApagado]}>
-                      {alcanza ? 'Canjear' : `Faltan ${beneficio.puntos - cliente.puntosDisponibles}`}
+                      {alcanza ? 'Canjear' : `Faltan ${beneficio.puntos - cliente.puntosDisponibles} pts`}
                     </Text>
                   </Pressable>
                 )}
@@ -210,7 +244,7 @@ export default function Home() {
         </View>
 
         <View style={estilos.seccion}>
-          <Text style={estilos.tituloSeccion}>Últimos movimientos</Text>
+          <Text style={estilos.tituloSeccion}>Tu actividad</Text>
           {movimientos.map((mov) => (
             <View key={mov.id} style={estilos.filaMovimiento}>
               <View>
@@ -266,11 +300,11 @@ function crearEstilos(c) {
     resaltado: { fontFamily: 'Inter_700Bold', color: c.texto },
     acciones: { flexDirection: 'row', gap: 12 },
     botonAccion: {
-      flex: 1, height: 118, justifyContent: 'space-between',
-      backgroundColor: c.marca, borderRadius: 18, padding: 16,
+      flex: 1, minHeight: 126, justifyContent: 'space-between', gap: 14,
+      backgroundColor: c.marca, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 18,
     },
     botonAccionTexto: { fontFamily: 'Inter_700Bold', fontSize: 17, color: c.textoSobreMarca },
-    botonAccionSub: { fontFamily: 'Inter_500Medium', fontSize: 12, color: c.textoSobreMarca },
+    botonAccionSub: { fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 17, color: c.textoSobreMarca },
 
     seccion: { gap: 10 },
     tituloSeccion: { fontFamily: 'Inter_700Bold', fontSize: 16, color: c.texto },
@@ -319,8 +353,10 @@ function crearEstilos(c) {
     filaCategoria: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
     divisorArriba: { borderTopWidth: 1, borderTopColor: c.divisor },
     punto: { width: 12, height: 12, borderRadius: 6 },
-    botonAccionSecundario: { height: 100, backgroundColor: c.superficie, borderWidth: 1, borderColor: c.borde },
+    botonAccionSecundario: { minHeight: 116, backgroundColor: c.superficie, borderWidth: 1, borderColor: c.borde },
     textoNormal: { color: c.texto },
     textoSuave: { color: c.textoSecundario },
+    esqueleto: { gap: 18 },
+    bloque: { backgroundColor: c.borde, borderRadius: 16 },
   });
 }
