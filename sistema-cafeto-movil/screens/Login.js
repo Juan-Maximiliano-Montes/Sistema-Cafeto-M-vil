@@ -253,7 +253,7 @@ export default function Login({ navigation, route }) {
             <Feather name="mail" size={20} color={colores.textoSecundario} />
             <TextInput
               style={estilos.entrada}
-              placeholder="tunombre@correo.com"
+              placeholder="ejemplo@correo.com"
               placeholderTextColor={colores.textoTenue}
               value={correo}
               onChangeText={cambiarCorreo}
@@ -274,7 +274,7 @@ export default function Login({ navigation, route }) {
             </View>
           )}
           {campoActivo === 'correo' && errorCorreo === '' && (
-            <Text style={estilos.ayuda}>Usá el correo con el que te registraste.</Text>
+            <Text style={estilos.ayuda}>Ingresa el correo con el que te registraste.</Text>
           )}
 
           <Text style={estilos.etiqueta}>Contraseña</Text>
@@ -340,7 +340,7 @@ export default function Login({ navigation, route }) {
             {cargando ? (
               <View style={estilos.filaCargando}>
                 <ActivityIndicator color={colores.textoSobreMarca} />
-                <Text style={estilos.textoBotonPrincipal}>Ingresando...</Text>
+                <Text style={estilos.textoBotonPrincipal}>Iniciando sesión...</Text>
               </View>
             ) : (
               <Text
