@@ -137,6 +137,17 @@ export default function Login({ navigation, route }) {
     }
   };
 
+  const esFaltaDeConexion = (error) => {
+    const codigo = error?.code ?? '';
+    const mensaje = error?.message ?? '';
+    return (
+      codigo === 'auth/network-request-failed' ||
+      codigo === 'auth/internal-error' ||
+      codigo === 'auth/timeout' ||
+      /network|offline|failed to fetch|timeout|unreachable/i.test(mensaje)
+    );
+  };
+
   const iniciarSesion = async () => {
     if (!validarFormulario()) return;
 
@@ -145,7 +156,7 @@ export default function Login({ navigation, route }) {
       await guardarPreferenciaRecordarme();
       await signInWithEmailAndPassword(auth, correo.trim(), contrasena);
     } catch (error) {
-      if (error?.code === 'auth/network-request-failed') {
+      if (esFaltaDeConexion(error)) {
         setSinConexion(true);
       } else {
         mostrarErrorDeFirebase(error);
@@ -174,7 +185,7 @@ export default function Login({ navigation, route }) {
     try {
       await signInAnonymously(auth);
     } catch (error) {
-      if (error?.code === 'auth/network-request-failed') {
+      if (esFaltaDeConexion(error)) {
         setSinConexion(true);
       } else {
         mostrarErrorDeFirebase(error);
@@ -214,7 +225,7 @@ export default function Login({ navigation, route }) {
         >
           <View style={estilos.barraSuperior}>
             <Pressable style={estilos.chipInvitado} onPress={seguirSinCuenta} disabled={cargando}>
-              <Text style={estilos.textoChip}>Seguir sin cuenta</Text>
+              <Text style={estilos.textoChip}>Entrar como invitado</Text>
               <Feather name="chevron-right" size={16} color={colores.textoSecundario} />
             </Pressable>
             <Pressable style={estilos.botonTema} onPress={cambiarTema}>

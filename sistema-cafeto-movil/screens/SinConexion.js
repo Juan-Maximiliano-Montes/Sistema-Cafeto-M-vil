@@ -36,7 +36,7 @@ export default function SinConexion({ alReintentar, alVolver }) {
             <Ionicons name="arrow-back" size={22} color={colores.texto} />
           </Pressable>
         ) : (
-          <View style={estilos.botonRedondo} />
+          <View style={estilos.espacio} />
         )}
         <Image source={isotipo} style={estilos.isotipo} />
         <Pressable onPress={cambiarTema} style={estilos.botonRedondo}>
@@ -70,6 +70,7 @@ function crearEstilos(c) {
       width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center',
       borderWidth: 1, borderColor: c.borde, backgroundColor: c.superficie,
     },
+    espacio: { width: 44, height: 44 },
     centro: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
     circulo: {
       width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center',
