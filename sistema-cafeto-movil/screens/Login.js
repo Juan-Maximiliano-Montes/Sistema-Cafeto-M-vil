@@ -118,8 +118,9 @@ export default function Login({ navigation, route }) {
         break;
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
-      case 'auth/user-not-found':
         setErrorContrasena('La contraseña no coincide con ese correo.');
+      case 'auth/user-not-found':
+        setErrorContrasena('Cuenta no encotrada, verifique el correo');
         break;
       case 'auth/too-many-requests':
         setErrorContrasena('Demasiados intentos. Esperá unos minutos y probá de nuevo.');
