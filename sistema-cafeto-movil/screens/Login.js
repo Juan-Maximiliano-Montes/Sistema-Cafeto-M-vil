@@ -57,6 +57,15 @@ export default function Login({ navigation, route }) {
   }, []);
 
   useEffect(() => {
+    AsyncStorage.getItem('cafeto:abrirRegistro').then((valor) => {
+      if (valor) {
+        AsyncStorage.removeItem('cafeto:abrirRegistro');
+        navigation.navigate('Registro');
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     if (route.params?.correo) {
       setCorreo(route.params.correo);
       setErrorCorreo('');

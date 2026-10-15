@@ -6,6 +6,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { signOut } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
 
@@ -15,15 +16,68 @@ const coloresCategoria = {
   Gold: '#FAB41F',
 };
 
-function BotonAccion({ icono, texto, subtexto, colores, estilos }) {
-    return (
-    <Pressable style={estilos.botonAccion}>
-      <Ionicons name={icono} size={28} color={colores.textoSobreMarca} />
+const categorias = [
+  { nombre: 'Bronze', desde: 'Desde que creás tu cuenta', tasa: '1 pto c/ $100' },
+  { nombre: 'Silver', desde: 'Desde 1.000 puntos', tasa: '1 pto c/ $83' },
+  { nombre: 'Gold', desde: 'Desde 5.000 puntos', tasa: '1 pto c/ $67' },
+];
+
+function BotonAccion({ icono, texto, subtexto, secundario, colores, estilos }) {
+  return (
+    <Pressable style={[estilos.botonAccion, secundario && estilos.botonAccionSecundario]}>
+      <Ionicons name={icono} size={28} color={secundario ? colores.marca : colores.textoSobreMarca} />
       <View>
-        <Text style={estilos.botonAccionTexto}>{texto}</Text>
-        <Text style={estilos.botonAccionSub}>{subtexto}</Text>
+        <Text style={[estilos.botonAccionTexto, secundario && estilos.textoNormal]}>{texto}</Text>
+        <Text style={[estilos.botonAccionSub, secundario && estilos.textoSuave]}>{subtexto}</Text>
       </View>
     </Pressable>
+  );
+}
+
+function ContenidoInvitado({ colores, estilos }) {
+  const irARegistro = async () => {
+    await AsyncStorage.setItem('cafeto:abrirRegistro', 'si');
+    await signOut(auth);
+  };
+
+  return (
+    <>
+      <View style={estilos.tarjeta}>
+        <Text style={estilos.tituloInvitado}>Cada compra suma</Text>
+        <Text style={estilos.puntosTexto}>
+          Creá tu cuenta, mostrá tu QR en caja y cambiá tus puntos por productos y descuentos.
+        </Text>
+        <View style={estilos.acciones}>
+          <Pressable style={estilos.botonPrimario} onPress={irARegistro}>
+            <Text style={estilos.botonPrimarioTexto}>Crear cuenta</Text>
+          </Pressable>
+          <Pressable style={estilos.botonSecundario} onPress={() => signOut(auth)}>
+            <Text style={estilos.botonSecundarioTexto}>Ya tengo cuenta</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={estilos.seccion}>
+        <Text style={estilos.tituloSeccion}>Mientras más venís, más ganás</Text>
+        <View style={estilos.lista}>
+          {categorias.map((cat, indice) => (
+            <View key={cat.nombre} style={[estilos.filaCategoria, indice > 0 && estilos.divisorArriba]}>
+              <View style={[estilos.punto, { backgroundColor: coloresCategoria[cat.nombre] }]} />
+              <View style={estilos.textosBeneficio}>
+                <Text style={estilos.tituloBeneficio}>{cat.nombre}</Text>
+                <Text style={estilos.detalle}>{cat.desde}</Text>
+              </View>
+              <Text style={estilos.detalle}>{cat.tasa}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={estilos.acciones}>
+        <BotonAccion icono="gift-outline" texto="Ver beneficios" subtexto="Qué podés canjear" secundario colores={colores} estilos={estilos} />
+        <BotonAccion icono="book-outline" texto="Ver la carta" subtexto="Productos y precios" secundario colores={colores} estilos={estilos} />
+      </View>
+    </>
   );
 }
 
@@ -78,7 +132,11 @@ export default function Home() {
             <Image source={isotipo} style={estilos.isotipo} />
             <View>
               <Text style={estilos.titulo}>{saludo}</Text>
-              <Text style={estilos.subtitulo}>Cafeto · Las Lomitas</Text>
+              {esInvitado ? (
+                <Text style={estilos.etiquetaInvitado}>INVITADO</Text>
+              ) : (
+                <Text style={estilos.subtitulo}>Cafeto · Las Lomitas</Text>
+              )}
             </View>
           </View>
           
@@ -91,6 +149,10 @@ export default function Home() {
             </Pressable>
           </View>
         </View>
+        {esInvitado ? (
+          <ContenidoInvitado colores={colores} estilos={estilos} />
+        ) : (
+          <>
         <View style={estilos.tarjeta}>
           <View style={estilos.tarjetaFila}>
             <View style={[estilos.chip, { backgroundColor: coloresCategoria[cliente.categoria] }]}>
@@ -161,6 +223,8 @@ export default function Home() {
             </View>
           ))}
         </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -235,5 +299,28 @@ function crearEstilos(c) {
     textoMovimiento: { fontFamily: 'Inter_400Regular', fontSize: 14, color: c.texto },
     puntosMovimiento: { fontFamily: 'Inter_700Bold', fontSize: 14, color: c.textoSecundario },
     puntosSuma: { color: c.exito },
+    tituloInvitado: { fontFamily: 'Caveat_700Bold', fontSize: 30, color: c.titulo },
+    botonPrimario: {
+      flex: 1, backgroundColor: c.marca, borderRadius: 12, paddingVertical: 14,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    botonPrimarioTexto: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: c.textoSobreMarca },
+    botonSecundario: {
+      flex: 1, borderWidth: 1, borderColor: c.bordeAdvertencia, borderRadius: 12, paddingVertical: 14,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    botonSecundarioTexto: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: c.texto },
+    etiquetaInvitado: {
+      alignSelf: 'flex-start', fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 2,
+      color: c.marca, backgroundColor: c.marcaSuave, borderRadius: 8,
+      paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
+    },
+    lista: { backgroundColor: c.superficie, borderWidth: 1, borderColor: c.borde, borderRadius: 16 },
+    filaCategoria: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+    divisorArriba: { borderTopWidth: 1, borderTopColor: c.divisor },
+    punto: { width: 12, height: 12, borderRadius: 6 },
+    botonAccionSecundario: { height: 100, backgroundColor: c.superficie, borderWidth: 1, borderColor: c.borde },
+    textoNormal: { color: c.texto },
+    textoSuave: { color: c.textoSecundario },
   });
 }
