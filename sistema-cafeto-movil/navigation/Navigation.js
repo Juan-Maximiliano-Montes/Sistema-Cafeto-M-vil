@@ -48,7 +48,7 @@ export default function Navigation() {
         ) : !verificado ? (
           <Stack.Screen name="Verificacion" component={Verificacion} />
         ) : (
-          <Stack.Screen name="Home" component={Home} options={{ headerShown: true, title: 'Inicio' }} />
+          <Stack.Screen name="Home" component={Home} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

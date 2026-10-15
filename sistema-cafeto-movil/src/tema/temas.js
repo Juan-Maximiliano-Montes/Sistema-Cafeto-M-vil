@@ -26,8 +26,8 @@ export const temas = {
     barraEstado: 'light',
   },
   claro: {
-    fondo: '#FFFFFF',
-    superficie: '#F4F1EA',
+    fondo: '#F4F1EA',
+    superficie: '#FFFFFF',
     superficieActiva: '#FFFFFF',
     borde: '#E6E2D8',
     divisor: '#EAECF1',
