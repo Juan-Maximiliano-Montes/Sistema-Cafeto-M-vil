@@ -51,6 +51,15 @@ export default function Home() {
   };
   const faltan = cliente.puntosProximaCategoria - cliente.puntosAcumulados;
   const avance = (cliente.puntosAcumulados / cliente.puntosProximaCategoria) * 100;
+  const beneficios = [
+    { id: 1, icono: 'pricetag-outline', titulo: '5% off en cada compra', detalle: 'Se aplica solo al pagar', tipo: 'AUTOMATICO', puntos: 0 },
+    { id: 2, icono: 'cafe-outline', titulo: 'Café con leche gratis', detalle: '400 pts', tipo: 'CANJEABLE', puntos: 400 },
+  ];
+
+  const movimientos = [
+    { id: 1, concepto: 'Compra en caja', fecha: '12 oct', puntos: 38 },
+    { id: 2, concepto: 'Canje: medialunas x3', fecha: '2 oct', puntos: -300 },
+  ];
 
   if (!fuentesCargadas) {
     return (
@@ -108,6 +117,50 @@ export default function Home() {
           <BotonAccion icono="qr-code-outline" texto="Mi QR" subtexto="Sumá en la caja" colores={colores} estilos={estilos} />
           <BotonAccion icono="gift-outline" texto="Canjear" subtexto="Usá tus puntos" colores={colores} estilos={estilos} />
         </View>
+        <View style={estilos.seccion}>
+          <View style={estilos.tarjetaFila}>
+            <Text style={estilos.tituloSeccion}>Tus beneficios {cliente.categoria}</Text>
+            <Text style={estilos.enlace}>Ver todos</Text>
+          </View>
+          {beneficios.map((beneficio) => {
+            const alcanza = cliente.puntosDisponibles >= beneficio.puntos;
+            return (
+              <View key={beneficio.id} style={estilos.filaBeneficio}>
+                <View style={estilos.iconoBeneficio}>
+                  <Ionicons name={beneficio.icono} size={18} color={colores.marca} />
+                </View>
+                <View style={estilos.textosBeneficio}>
+                  <Text style={estilos.tituloBeneficio}>{beneficio.titulo}</Text>
+                  <Text style={estilos.detalle}>{beneficio.detalle}</Text>
+                </View>
+                {beneficio.tipo === 'AUTOMATICO' ? (
+                  <Text style={estilos.activo}>ACTIVO</Text>
+                ) : (
+                  <Pressable style={[estilos.botonCanje, !alcanza && estilos.botonCanjeOff]} disabled={!alcanza}>
+                    <Text style={[estilos.botonCanjeTexto, !alcanza && estilos.textoApagado]}>
+                      {alcanza ? 'Canjear' : `Faltan ${beneficio.puntos - cliente.puntosDisponibles}`}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={estilos.seccion}>
+          <Text style={estilos.tituloSeccion}>Últimos movimientos</Text>
+          {movimientos.map((mov) => (
+            <View key={mov.id} style={estilos.filaMovimiento}>
+              <View>
+                <Text style={estilos.textoMovimiento}>{mov.concepto}</Text>
+                <Text style={estilos.detalle}>{mov.fecha}</Text>
+              </View>
+              <Text style={[estilos.puntosMovimiento, mov.puntos > 0 && estilos.puntosSuma]}>
+                {mov.puntos > 0 ? `+${mov.puntos}` : mov.puntos} pts
+              </Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -154,5 +207,33 @@ function crearEstilos(c) {
     },
     botonAccionTexto: { fontFamily: 'Inter_700Bold', fontSize: 17, color: c.textoSobreMarca },
     botonAccionSub: { fontFamily: 'Inter_500Medium', fontSize: 12, color: c.textoSobreMarca },
+
+    seccion: { gap: 10 },
+    tituloSeccion: { fontFamily: 'Inter_700Bold', fontSize: 16, color: c.texto },
+    filaBeneficio: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.superficie, borderWidth: 1, borderColor: c.borde, borderRadius: 16, padding: 12,
+    },
+    iconoBeneficio: {
+      width: 40, height: 40, borderRadius: 12, backgroundColor: c.superficieActiva,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    textosBeneficio: { flex: 1, gap: 2 },
+    tituloBeneficio: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: c.texto },
+    activo: {
+      fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 1, color: c.exito,
+      backgroundColor: c.fondoExito, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, overflow: 'hidden',
+    },
+    botonCanje: { borderWidth: 1, borderColor: c.marca, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+    botonCanjeOff: { borderColor: c.borde },
+    botonCanjeTexto: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: c.marca },
+    textoApagado: { color: c.textoTenue },
+    filaMovimiento: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.divisor,
+    },
+    textoMovimiento: { fontFamily: 'Inter_400Regular', fontSize: 14, color: c.texto },
+    puntosMovimiento: { fontFamily: 'Inter_700Bold', fontSize: 14, color: c.textoSecundario },
+    puntosSuma: { color: c.exito },
   });
 }
