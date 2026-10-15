@@ -1,24 +1,23 @@
 {
   "expo": {
-    "name": "login-signup",
-    "slug": "login-signup",
+    "name": "Sistema Cafeto",
+    "slug": "sistema-cafeto-movil",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/cafeto-icono-ambar@512.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#121128",
+        "foregroundImage": "./assets/cafeto-icono-ambar@512.png",
+        "monochromeImage": "./assets/cafeto-icono-blanco@512.png"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/cafeto-favicon-32.png"
     },
     "plugins": [
       "expo-font",
