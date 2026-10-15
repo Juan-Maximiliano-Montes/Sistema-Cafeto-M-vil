@@ -124,9 +124,9 @@ export default function Registro({ navigation }) {
     if (errorApellido) nuevos.apellido = errorApellido;
 
     if (!correo.includes('@')) {
-      nuevos.correo = 'Falta la @. Ejemplo: maxi@cafeto.com.ar';
+      nuevos.correo = 'Falta la @. Ejemplo: team@cafeto.com.ar';
     } else if (!FORMATO_CORREO.test(correo.trim())) {
-      nuevos.correo = 'Falta el dominio. Ejemplo: maxi@cafeto.com.ar';
+      nuevos.correo = 'Falta el dominio. Ejemplo: team@cafeto.com.ar';
     }
 
     if (!fortaleza.segura) {
@@ -147,7 +147,7 @@ export default function Registro({ navigation }) {
     if (telefono.trim()) {
       const digitos = telefono.replace(/\D/g, '');
       if (digitos.length < 7 || digitos.length > 15) {
-        nuevos.telefono = 'El teléfono son entre 7 y 15 dígitos.';
+        nuevos.telefono = 'El teléfono posee entre 7 y 15 dígitos.';
       }
     }
 
