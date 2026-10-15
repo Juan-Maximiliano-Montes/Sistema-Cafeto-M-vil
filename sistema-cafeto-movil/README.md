@@ -37,7 +37,7 @@ Si `npm ci` indica que faltan archivos o que el lockfile no coincide, usar `npm 
 4. Registrar la aplicación y conservar el objeto `firebaseConfig`.
 5. Entrar en **Authentication > Método de acceso**.
 6. Agregar y habilitar **Correo electrónico/contraseña**.
-7. Agregar y habilitar **Anónimo**
+7. Agregar y habilitar **Anónimo**.
 
 ## 3. Agregar la configuración Firebase
 
