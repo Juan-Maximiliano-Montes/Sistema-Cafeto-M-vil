@@ -45,7 +45,8 @@ export default function Pestanas() {
           paddingBottom: abajo + 10,
           paddingTop: 10,
         },
-        tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14 },
+        tabBarItemStyle: { paddingHorizontal: 0 },
+        tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 13 },
         tabBarIcon: ({ color, size }) => <Ionicons name={iconos[route.name]} size={size} color={color} />,
       })}
     >
