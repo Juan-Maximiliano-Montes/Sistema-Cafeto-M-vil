@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,7 +47,15 @@ export default function Pestanas() {
           paddingTop: 10,
         },
         tabBarItemStyle: { paddingHorizontal: 0 },
-        tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 13 },
+        tabBarLabel: ({ color }) => (
+          <Text
+            allowFontScaling={false}
+            numberOfLines={1}
+            style={{ fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14, color, textAlign: 'center' }}
+          >
+            {esInvitado && route.name === 'Perfil' ? 'Entrar' : route.name}
+          </Text>
+        ),
         tabBarIcon: ({ color, size }) => <Ionicons name={iconos[route.name]} size={size} color={color} />,
       })}
     >

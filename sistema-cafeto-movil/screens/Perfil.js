@@ -1,21 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signOut, updateProfile } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import { cliente, coloresCategoria, movimientos } from '../src/datos/ejemplo';
-
-function formatearEntradaFecha(texto) {
-  const digitos = texto.replace(/\D/g, '').slice(0, 8);
-  if (digitos.length <= 2) return digitos;
-  if (digitos.length <= 4) return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
-  return `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
-}
 
 const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -27,11 +21,12 @@ function formatearCumple(fecha) {
 
 export default function Perfil() {
   const { colores, tema, cambiarTema } = useTema();
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const { avisar } = useAviso();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
   const [perfil, setPerfil] = useState(null);
   const [editando, setEditando] = useState(false);
-  const [borrador, setBorrador] = useState({ nombre: '', telefono: '', cumple: '', aceptaPromociones: false });
+  const [borrador, setBorrador] = useState({ nombre: '', telefono: '', cumple: null, aceptaPromociones: false });
 
   const usuario = auth.currentUser;
   const nombreCompleto = usuario?.displayName ?? 'Cliente Cafeto';
@@ -50,10 +45,10 @@ export default function Perfil() {
   }, [usuario]);
 
   const abrirEditor = () => {
-    let cumple = '';
+    let cumple = null;
     if (perfil?.fechaNacimiento) {
       const [anio, mes, dia] = perfil.fechaNacimiento.split('-');
-      cumple = `${dia}/${mes}/${anio}`;
+      cumple = new Date(Number(anio), Number(mes) - 1, Number(dia));
     }
     setBorrador({
       nombre: nombreCompleto,
@@ -64,20 +59,25 @@ export default function Perfil() {
     setEditando(true);
   };
 
+  const elegirFecha = (evento, fecha) => {
+    if (Platform.OS !== 'ios') setMostrarCalendario(false);
+    if (evento.type === 'dismissed') return;
+    if (fecha) setBorrador((previo) => ({ ...previo, cumple: fecha }));
+  };
+
   const guardar = async () => {
-    const partes = borrador.cumple.split('/');
-    const fechaValida = partes.length === 3 && partes[0].length === 2 && partes[1].length === 2 && partes[2].length === 4;
-    if (borrador.cumple && !fechaValida) {
-      avisar('advertencia', 'Revisá la fecha', 'Escribila como día/mes/año. Por ejemplo: 21/01/1990.');
-      return;
-    }
+    const fechaIso = borrador.cumple
+      ? `${borrador.cumple.getFullYear()}-${String(borrador.cumple.getMonth() + 1).padStart(2, '0')}-${String(
+          borrador.cumple.getDate()
+        ).padStart(2, '0')}`
+      : null;
 
     const nombre = borrador.nombre.trim();
     const nuevo = {
       ...perfil,
       nombre,
       telefono: borrador.telefono.trim(),
-      fechaNacimiento: fechaValida ? `${partes[2]}-${partes[1]}-${partes[0]}` : null,
+      fechaNacimiento: fechaIso,
       aceptaPromociones: borrador.aceptaPromociones,
     };
 
@@ -199,15 +199,36 @@ export default function Perfil() {
             />
 
             <Text style={estilos.etiquetaCampo}>Cumpleaños</Text>
-            <TextInput
-              style={estilos.campo}
-              value={borrador.cumple}
-              onChangeText={(texto) => setBorrador({ ...borrador, cumple: formatearEntradaFecha(texto) })}
-              keyboardType="numeric"
-              maxLength={10}
-              placeholder="21/01/1990"
-              placeholderTextColor={colores.textoTenue}
-            />
+            <Pressable style={estilos.selectorFecha} onPress={() => setMostrarCalendario(true)}>
+              <Feather name="calendar" size={20} color={colores.textoSecundario} />
+              <Text style={[estilos.textoFecha, !borrador.cumple && estilos.textoFechaVacia]}>
+                {borrador.cumple ? formatearCumple(
+                  `${borrador.cumple.getFullYear()}-${String(borrador.cumple.getMonth() + 1).padStart(2, '0')}-${String(
+                    borrador.cumple.getDate()
+                  ).padStart(2, '0')}`
+                ) : 'Elegí tu fecha'}
+              </Text>
+              <Feather name="chevron-down" size={20} color={colores.textoSecundario} />
+            </Pressable>
+
+            {mostrarCalendario ? (
+              <DateTimePicker
+                value={borrador.cumple ?? new Date(2000, 0, 1)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+                onChange={elegirFecha}
+                themeVariant={tema === 'oscuro' ? 'dark' : 'light'}
+                locale="es-AR"
+              />
+            ) : null}
+
+            {mostrarCalendario && Platform.OS === 'ios' ? (
+              <Pressable style={estilos.botonListo} onPress={() => setMostrarCalendario(false)}>
+                <Text style={estilos.avisoEnlaceFecha}>Listo</Text>
+              </Pressable>
+            ) : null}
 
             <View style={estilos.filaSwitch}>
               <Text style={estilos.etiqueta}>Querés recibir promos</Text>
@@ -277,6 +298,15 @@ function crearEstilos(c) {
       paddingHorizontal: 14, paddingVertical: 12,
       fontFamily: 'Inter_400Regular', fontSize: 15, color: c.texto,
     },
+    selectorFecha: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.superficie, borderWidth: 1, borderColor: c.borde, borderRadius: 12,
+      paddingHorizontal: 14, paddingVertical: 13,
+    },
+    textoFecha: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 15, color: c.texto },
+    textoFechaVacia: { color: c.textoTenue },
+    botonListo: { alignSelf: 'center', paddingVertical: 10 },
+    avisoEnlaceFecha: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: c.marca },
     filaSwitch: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14 },
     accionesModal: { flexDirection: 'row', gap: 12, marginTop: 22 },
     botonCancelar: {
