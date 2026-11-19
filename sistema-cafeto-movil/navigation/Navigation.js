@@ -1,77 +1,109 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { onIdTokenChanged } from 'firebase/auth';
-import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
+import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { isFirebaseConfigured } from '../src/config/firebaseConfig';
+import { useSesion } from '../src/sesion/SesionContext';
+import { useTema } from '../src/tema/TemaContext';
+import Pestanas from './Pestanas';
 import Login from '../screens/Login';
 import Registro from '../screens/Registro';
 import Verificacion from '../screens/Verificacion';
-import Pestanas from './Pestanas';
-import { escucharEntrada, hayEntrada, reiniciarEntrada } from '../src/sesion/entrada';
+import EntrarEquipo from '../screens/EntrarEquipo';
+import Ayuda from '../screens/Ayuda';
+import MiQR from '../screens/MiQR';
+import MisPuntos from '../screens/MisPuntos';
+import ConsultaProducto from '../screens/ConsultaProducto';
+import Alertas from '../screens/Alertas';
+import Marcas from '../screens/Marcas';
+import Rubros from '../screens/Rubros';
+import Merma from '../screens/Merma';
+import Traspaso from '../screens/Traspaso';
+import Produccion from '../screens/Produccion';
+import Conteo from '../screens/Conteo';
+import Autorizaciones from '../screens/Autorizaciones';
+import OfertasEtiquetar from '../screens/OfertasEtiquetar';
+import Recepciones from '../screens/Recepciones';
+import RecibirOrden from '../screens/RecibirOrden';
 
 const Stack = createStackNavigator();
 
+const PANTALLAS_EQUIPO = [
+  { nombre: 'ConsultaProducto', componente: ConsultaProducto, permiso: 'ver_productos' },
+  { nombre: 'Alertas', componente: Alertas, permiso: 'ver_stock' },
+  { nombre: 'Marcas', componente: Marcas, permiso: 'ver_marcas' },
+  { nombre: 'Rubros', componente: Rubros, permiso: 'ver_rubros' },
+  { nombre: 'Merma', componente: Merma, permiso: 'registrar_merma' },
+  { nombre: 'Traspaso', componente: Traspaso, permiso: 'registrar_traspaso' },
+  { nombre: 'Produccion', componente: Produccion, permiso: 'registrar_produccion' },
+  { nombre: 'Conteo', componente: Conteo, permiso: 'contar_stock' },
+  { nombre: 'Autorizaciones', componente: Autorizaciones, permiso: 'autorizar_ajustes' },
+  { nombre: 'OfertasEtiquetar', componente: OfertasEtiquetar, permiso: 'imprimir_ofertas' },
+  { nombre: 'Recepciones', componente: Recepciones, permiso: 'registrar_compra' },
+  { nombre: 'RecibirOrden', componente: RecibirOrden, permiso: 'registrar_compra' },
+];
+
 export default function Navigation() {
-  const [user, setUser] = useState(undefined);
-  const [entrada, setEntrada] = useState(hayEntrada());
-  const entroYaVerificado = useRef(false);
-  const uidPrevio = useRef(null);
-
-  useEffect(() => escucharEntrada(setEntrada), []);
-
-  useEffect(() => {
-    if (!auth) return;
-    return onIdTokenChanged(auth, (usuario) => {
-      if (!usuario) {
-        uidPrevio.current = null;
-        entroYaVerificado.current = false;
-        reiniciarEntrada();
-        setUser(null);
-        return;
-      }
-
-      if (uidPrevio.current !== usuario.uid) {
-        uidPrevio.current = usuario.uid;
-        entroYaVerificado.current = Boolean(usuario.emailVerified || usuario.isAnonymous);
-      }
-
-      setUser(usuario);
-    });
-  }, []);
-
-  const verificado = Boolean(
-    user &&
-      (user.isAnonymous ||
-        (user.emailVerified && (entroYaVerificado.current || entrada)))
-  );
+  const { cargando, necesitaVerificar, rol, tienePermiso } = useSesion();
+  const { colores } = useTema();
+  const [fuentesCargadas] = useFonts({
+    Caveat_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   if (!isFirebaseConfigured) {
     return (
       <View style={styles.center}>
         <Text style={styles.message}>
-          Falta configurar Firebase. Copia .env.example como .env y completa los datos de tu proyecto.
+          Falta configurar Firebase. Copiá .env.example como .env y completá los datos de tu proyecto.
         </Text>
       </View>
     );
   }
 
-  if (user === undefined) {
-    return <View style={styles.center}><ActivityIndicator size="large" /></View>;
+  if (cargando || !fuentesCargadas) {
+    return (
+      <View style={[styles.center, { backgroundColor: colores.fondo }]}>
+        <ActivityIndicator size="large" color={colores.marca} />
+      </View>
+    );
   }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!user ? (
+        {necesitaVerificar ? (
           <>
-            <Stack.Screen name="Login" component={Login} />
-            <Stack.Screen name="Registro" component={Registro} />
+            <Stack.Screen name="Verificacion" component={Verificacion} />
+            <Stack.Screen name="Ayuda" component={Ayuda} />
           </>
-        ) : !verificado ? (
-          <Stack.Screen name="Verificacion" component={Verificacion} />
         ) : (
-          <Stack.Screen name="Home" component={Pestanas} />
+          <>
+            <Stack.Screen name="Principal" component={Pestanas} />
+            <Stack.Screen name="Ayuda" component={Ayuda} />
+            {rol === 'invitado' && (
+              <Stack.Group screenOptions={{ presentation: 'modal' }}>
+                <Stack.Screen name="Login" component={Login} />
+                <Stack.Screen name="Registro" component={Registro} />
+                <Stack.Screen name="EntrarEquipo" component={EntrarEquipo} />
+              </Stack.Group>
+            )}
+            {rol === 'cliente' && (
+              <>
+                <Stack.Screen name="MiQR" component={MiQR} />
+                <Stack.Screen name="MisPuntos" component={MisPuntos} />
+              </>
+            )}
+            {rol === 'equipo' &&
+              PANTALLAS_EQUIPO.filter((pantalla) => tienePermiso(pantalla.permiso)).map((pantalla) => (
+                <Stack.Screen key={pantalla.nombre} name={pantalla.nombre} component={pantalla.componente} />
+              ))}
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

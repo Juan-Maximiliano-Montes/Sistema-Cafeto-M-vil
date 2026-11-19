@@ -17,14 +17,14 @@ import { Feather, FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { sendPasswordResetEmail, signInAnonymously, signInWithEmailAndPassword } from 'firebase/auth';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import SinConexion from './SinConexion';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
+import { filtrarCorreo, validarCorreo } from '../src/utilidades/validaciones';
 
 const CLAVE_CORREO_RECORDADO = 'cafeto:correoRecordado';
-const FORMATO_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Login({ navigation, route }) {
   const [fuentesCargadas] = useFonts({
@@ -50,21 +50,14 @@ export default function Login({ navigation, route }) {
   const formularioCompleto = correo.trim() !== '' && contrasena !== '';
 
   useEffect(() => {
-    AsyncStorage.getItem(CLAVE_CORREO_RECORDADO).then((correoGuardado) => {
-      if (correoGuardado) {
-        setCorreo((actual) => actual || correoGuardado);
-        setRecordarme(true);
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    AsyncStorage.getItem('cafeto:abrirRegistro').then((valor) => {
-      if (valor) {
-        AsyncStorage.removeItem('cafeto:abrirRegistro');
-        navigation.navigate('Registro');
-      }
-    });
+    AsyncStorage.getItem(CLAVE_CORREO_RECORDADO)
+      .then((correoGuardado) => {
+        if (correoGuardado) {
+          setCorreo((actual) => actual || correoGuardado);
+          setRecordarme(true);
+        }
+      })
+      .catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -75,7 +68,7 @@ export default function Login({ navigation, route }) {
   }, [route.params?.correo]);
 
   const cambiarCorreo = (texto) => {
-    setCorreo(texto);
+    setCorreo(filtrarCorreo(texto));
     setErrorCorreo('');
   };
 
@@ -84,14 +77,17 @@ export default function Login({ navigation, route }) {
     setErrorContrasena('');
   };
 
+  const salirDelCorreo = () => {
+    setCampoActivo(null);
+    setErrorCorreo(validarCorreo(correo));
+  };
+
   const validarFormulario = () => {
     let esValido = true;
 
-    if (!correo.trim()) {
-      setErrorCorreo('Ingresá tu correo electrónico.');
-      esValido = false;
-    } else if (!FORMATO_CORREO.test(correo.trim())) {
-      setErrorCorreo('Revisá el formato del correo.');
+    const problemaCorreo = validarCorreo(correo, { obligatorio: true });
+    if (problemaCorreo) {
+      setErrorCorreo(problemaCorreo);
       esValido = false;
     }
 
@@ -104,11 +100,10 @@ export default function Login({ navigation, route }) {
   };
 
   const guardarPreferenciaRecordarme = async () => {
-    if (recordarme) {
-      await AsyncStorage.setItem(CLAVE_CORREO_RECORDADO, correo.trim());
-    } else {
-      await AsyncStorage.removeItem(CLAVE_CORREO_RECORDADO);
-    }
+    const guardado = recordarme
+      ? AsyncStorage.setItem(CLAVE_CORREO_RECORDADO, correo.trim())
+      : AsyncStorage.removeItem(CLAVE_CORREO_RECORDADO);
+    await guardado.catch(() => null);
   };
 
   const mostrarErrorDeFirebase = (error) => {
@@ -118,9 +113,10 @@ export default function Login({ navigation, route }) {
         break;
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
-        setErrorContrasena('La contraseña no coincide con ese correo.');
+        setErrorContrasena('El correo o la contraseña no coinciden. Revisalos y probá de nuevo.');
+        break;
       case 'auth/user-not-found':
-        setErrorContrasena('Cuenta no encotrada, verifique el correo');
+        setErrorContrasena('No encontramos una cuenta con ese correo. Revisalo o creá tu cuenta.');
         break;
       case 'auth/too-many-requests':
         setErrorContrasena('Demasiados intentos. Esperá unos minutos y probá de nuevo.');
@@ -168,8 +164,9 @@ export default function Login({ navigation, route }) {
   };
 
   const recuperarContrasena = async () => {
-    if (!FORMATO_CORREO.test(correo.trim())) {
-      setErrorCorreo('Escribí tu correo y te mandamos un enlace para elegir una nueva.');
+    const problemaCorreo = validarCorreo(correo);
+    if (!correo.trim() || problemaCorreo) {
+      setErrorCorreo(problemaCorreo || 'Escribí tu correo y te mandamos un enlace para elegir una nueva.');
       return;
     }
 
@@ -178,21 +175,6 @@ export default function Login({ navigation, route }) {
       avisar('exito', 'Revisá tu correo', `Te mandamos un enlace a ${correo.trim()} para que elijas una contraseña nueva.`);
     } catch (error) {
       mostrarErrorDeFirebase(error);
-    }
-  };
-
-  const seguirSinCuenta = async () => {
-    setCargando(true);
-    try {
-      await signInAnonymously(auth);
-    } catch (error) {
-      if (esFaltaDeConexion(error)) {
-        setSinConexion(true);
-      } else {
-        mostrarErrorDeFirebase(error);
-      }
-    } finally {
-      setCargando(false);
     }
   };
 
@@ -225,9 +207,9 @@ export default function Login({ navigation, route }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={estilos.barraSuperior}>
-            <Pressable style={estilos.chipInvitado} onPress={seguirSinCuenta} disabled={cargando}>
-              <Text style={estilos.textoChip}>Entrar como invitado</Text>
-              <Feather name="chevron-right" size={16} color={colores.textoSecundario} />
+            <Pressable style={estilos.chipInvitado} onPress={() => navigation.goBack()} disabled={cargando}>
+              <Feather name="chevron-left" size={16} color={colores.textoSecundario} />
+              <Text style={estilos.textoChip}>Seguir mirando</Text>
             </Pressable>
             <Pressable style={estilos.botonTema} onPress={cambiarTema}>
               <Ionicons name="contrast" size={20} color={colores.texto} />
@@ -258,7 +240,7 @@ export default function Login({ navigation, route }) {
               value={correo}
               onChangeText={cambiarCorreo}
               onFocus={() => setCampoActivo('correo')}
-              onBlur={() => setCampoActivo(null)}
+              onBlur={salirDelCorreo}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -274,7 +256,7 @@ export default function Login({ navigation, route }) {
             </View>
           )}
           {campoActivo === 'correo' && errorCorreo === '' && (
-            <Text style={estilos.ayuda}>Ingresa el correo con el que te registraste.</Text>
+            <Text style={estilos.ayuda}>Ingresá el correo con el que te registraste.</Text>
           )}
 
           <Text style={estilos.etiqueta}>Contraseña</Text>
@@ -387,6 +369,15 @@ export default function Login({ navigation, route }) {
               <Text style={estilos.enlaceRegistro}>Registrate</Text>
             </Pressable>
           </View>
+
+          <Pressable
+            style={estilos.filaAyuda}
+            onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
+            disabled={cargando}
+            hitSlop={8}
+          >
+            <Text style={estilos.enlace}>¿Tenés problemas para ingresar?</Text>
+          </Pressable>
 
           {!cargando && (
             <Text style={estilos.legal}>
@@ -661,6 +652,10 @@ function crearEstilos(c) {
       fontSize: 15,
       color: c.marca,
       textDecorationLine: 'underline',
+    },
+    filaAyuda: {
+      alignSelf: 'center',
+      marginTop: 12,
     },
     legal: {
       fontFamily: 'Inter_400Regular',

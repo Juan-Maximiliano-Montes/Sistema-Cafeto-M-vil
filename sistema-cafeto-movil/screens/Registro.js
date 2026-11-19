@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -27,43 +27,34 @@ import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import CampoTexto from '../src/componentes/CampoTexto';
+import { aIso, formatearFechaLarga } from '../src/utilidades/formato';
+import { limpiar } from '../src/utilidades/texto';
+import {
+  filtrarCorreo,
+  filtrarDni,
+  filtrarNombre,
+  filtrarTelefono,
+  medirFortaleza,
+  validarCorreo,
+  validarDni,
+  validarFechaNacimiento,
+  validarNombrePersona,
+  validarTelefono,
+} from '../src/utilidades/validaciones';
 
-const FORMATO_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SOLO_LETRAS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+$/;
-const NIVELES = ['muy débil', 'débil', 'regular', 'buena', 'fuerte'];
+function mensajeDelEnvio(error) {
+  if (error?.code === 'auth/too-many-requests') {
+    return 'Tu cuenta quedó creada, pero se pidieron muchos correos seguidos desde esta red. Esperá unos minutos y tocá «Reenviar enlace».';
+  }
+  if (error?.code === 'auth/quota-exceeded') {
+    return 'Tu cuenta quedó creada, pero hoy ya se mandaron todos los correos que permite el sistema. Probá mañana con «Reenviar enlace».';
+  }
+  if (error?.code === 'auth/network-request-failed') {
+    return 'Tu cuenta quedó creada, pero se cortó la conexión. Revisala y tocá «Reenviar enlace».';
+  }
+  return `Tu cuenta quedó creada, pero el correo de verificación no salió. Tocá «Reenviar enlace».
 
-function medirFortaleza(clave) {
-  const pruebas = [
-    { cumple: clave.length >= 8, consejo: 'Usá 8 caracteres o más' },
-    { cumple: /[a-z]/.test(clave) && /[A-Z]/.test(clave), consejo: 'Combiná mayúsculas y minúsculas' },
-    { cumple: /\d/.test(clave), consejo: 'Sumá un número' },
-    { cumple: /[^A-Za-z0-9]/.test(clave), consejo: 'Sumá un símbolo' },
-  ];
-  const puntaje = pruebas.filter((prueba) => prueba.cumple).length;
-  const pendiente = pruebas.find((prueba) => !prueba.cumple);
-
-  return {
-    puntaje,
-    nivel: NIVELES[puntaje],
-    consejo: pendiente ? pendiente.consejo : 'Excelente',
-    segura: pruebas[0].cumple && pruebas[1].cumple && pruebas[2].cumple,
-  };
-}
-
-function calcularEdad(nacimiento) {
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - nacimiento.getFullYear();
-  const yaCumplio =
-    hoy.getMonth() > nacimiento.getMonth() ||
-    (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() >= nacimiento.getDate());
-  if (!yaCumplio) edad -= 1;
-  return edad;
-}
-
-function formatearFecha(fecha) {
-  const dia = String(fecha.getDate()).padStart(2, '0');
-  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-  return `${dia}/${mes}/${fecha.getFullYear()}`;
+Código: ${error?.code ?? 'desconocido'}`;
 }
 
 export default function Registro({ navigation }) {
@@ -81,13 +72,16 @@ export default function Registro({ navigation }) {
   const [contrasena, setContrasena] = useState('');
   const [repetir, setRepetir] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [dni, setDni] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState(null);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aceptaPromociones, setAceptaPromociones] = useState(false);
   const [errores, setErrores] = useState({});
+  const [tocados, setTocados] = useState({});
   const [correoYaRegistrado, setCorreoYaRegistrado] = useState(false);
   const [creando, setCreando] = useState(false);
+  const enviando = useRef(false);
 
   const { tema, colores, isotipo, cambiarTema } = useTema();
   const { avisar } = useAviso();
@@ -105,29 +99,61 @@ export default function Registro({ navigation }) {
   const alCambiar = (campo, setter) => (texto) => {
     setter(texto);
     limpiarError(campo);
+    setTocados((anteriores) => ({ ...anteriores, [campo]: false }));
     if (campo === 'correo') setCorreoYaRegistrado(false);
   };
 
-  const validarNombre = (valor, etiqueta) => {
-    if (!valor.trim()) return `Ingresá tu ${etiqueta}.`;
-    if (!SOLO_LETRAS.test(valor.trim())) return 'Usá solo letras.';
-    return '';
+  const validarFormato = (campo) => {
+    switch (campo) {
+      case 'nombre':
+        return nombre.trim() ? validarNombrePersona(nombre, 'nombre') : '';
+      case 'apellido':
+        return apellido.trim() ? validarNombrePersona(apellido, 'apellido') : '';
+      case 'correo':
+        return validarCorreo(correo);
+      case 'contrasena':
+        return contrasena && !fortaleza.segura ? 'Usá 8 caracteres o más, con mayúsculas, minúsculas y un número.' : '';
+      case 'repetir':
+        return repetir && repetir !== contrasena ? 'Las contraseñas no coinciden.' : '';
+      case 'telefono':
+        return validarTelefono(telefono);
+      case 'dni':
+        return validarDni(dni);
+      default:
+        return '';
+    }
   };
+
+  const salirDe = (campo) => () => {
+    const revisar = campo === 'contrasena' && tocados.repetir ? [campo, 'repetir'] : [campo];
+    setTocados((anteriores) => ({ ...anteriores, ...Object.fromEntries(revisar.map((c) => [c, true])) }));
+    setErrores((anteriores) => ({
+      ...anteriores,
+      ...Object.fromEntries(revisar.map((c) => [c, validarFormato(c)])),
+    }));
+  };
+
+  const mostrarValido = (campo, valor) => Boolean(tocados[campo] && valor.trim() && !errores[campo]);
 
   const validarPaso1 = () => {
     const nuevos = {};
+    setTocados((anteriores) => ({
+      ...anteriores,
+      nombre: true,
+      apellido: true,
+      correo: true,
+      contrasena: true,
+      repetir: true,
+    }));
 
-    const errorNombre = validarNombre(nombre, 'nombre');
+    const errorNombre = validarNombrePersona(nombre, 'nombre');
     if (errorNombre) nuevos.nombre = errorNombre;
 
-    const errorApellido = validarNombre(apellido, 'apellido');
+    const errorApellido = validarNombrePersona(apellido, 'apellido');
     if (errorApellido) nuevos.apellido = errorApellido;
 
-    if (!correo.includes('@')) {
-      nuevos.correo = 'Falta la @. Ejemplo: team@cafeto.com.ar';
-    } else if (!FORMATO_CORREO.test(correo.trim())) {
-      nuevos.correo = 'Falta el dominio. Ejemplo: team@cafeto.com.ar';
-    }
+    const errorCorreo = validarCorreo(correo, { obligatorio: true });
+    if (errorCorreo) nuevos.correo = errorCorreo;
 
     if (!fortaleza.segura) {
       nuevos.contrasena = 'Usá 8 caracteres o más, con mayúsculas, minúsculas y un número.';
@@ -144,18 +170,18 @@ export default function Registro({ navigation }) {
   const validarPaso2 = () => {
     const nuevos = {};
 
-    if (telefono.trim()) {
-      const digitos = telefono.replace(/\D/g, '');
-      if (digitos.length < 7 || digitos.length > 15) {
-        nuevos.telefono = 'El teléfono posee entre 7 y 15 dígitos.';
-      }
+    const errorTelefono = validarTelefono(telefono);
+    if (errorTelefono) nuevos.telefono = errorTelefono;
+
+    const errorDni = validarDni(dni);
+    if (errorDni) nuevos.dni = errorDni;
+
+    if (!errorTelefono && !errorDni && !limpiar(telefono) && !limpiar(dni)) {
+      nuevos.telefono = 'Cargá tu teléfono o tu DNI: con uno de los dos te encuentran en la caja.';
     }
 
-    if (fechaNacimiento) {
-      const edad = calcularEdad(fechaNacimiento);
-      if (edad < 14) nuevos.fecha = 'Tenés que tener al menos 14 años.';
-      if (edad > 100) nuevos.fecha = 'Revisá el año de nacimiento.';
-    }
+    const errorFecha = validarFechaNacimiento(fechaNacimiento);
+    if (errorFecha) nuevos.fecha = errorFecha;
 
     if (!aceptaTerminos) {
       nuevos.terminos = 'Para crear la cuenta tenés que aceptar los términos.';
@@ -213,24 +239,31 @@ export default function Registro({ navigation }) {
   };
 
   const crearCuenta = async () => {
-    if (!validarPaso2()) return;
+    if (enviando.current || !validarPaso2()) return;
 
+    enviando.current = true;
     setCreando(true);
     try {
       const credencial = await createUserWithEmailAndPassword(auth, correo.trim(), contrasena);
-      await updateProfile(credencial.user, { displayName: `${nombre.trim()} ${apellido.trim()}` });
+      await updateProfile(credencial.user, { displayName: `${limpiar(nombre)} ${limpiar(apellido)}` }).catch(() => null);
       await AsyncStorage.setItem(
         `cafeto:perfil:${credencial.user.uid}`,
         JSON.stringify({
-          nombre: nombre.trim(),
-          apellido: apellido.trim(),
-          telefono: telefono.trim() ? `+54 ${telefono.trim()}` : null,
-          fechaNacimiento: fechaNacimiento ? fechaNacimiento.toISOString().slice(0, 10) : null,
+          nombre: limpiar(nombre),
+          apellido: limpiar(apellido),
+          telefono: limpiar(telefono) ? `+54 ${limpiar(telefono)}` : null,
+          dni: limpiar(dni) || null,
+          fechaNacimiento: aIso(fechaNacimiento),
           aceptaPromociones,
         })
-      );
-      await sendEmailVerification(credencial.user);
+      ).catch(() => null);
+      try {
+        await sendEmailVerification(credencial.user);
+      } catch (problema) {
+        avisar('advertencia', 'No pudimos mandarte el correo', mensajeDelEnvio(problema));
+      }
     } catch (error) {
+      enviando.current = false;
       setCreando(false);
       mostrarErrorDeRegistro(error);
     }
@@ -277,12 +310,22 @@ export default function Registro({ navigation }) {
   );
 
   const pie = (
-    <View style={estilos.filaPie}>
-      <Text style={estilos.textoPie}>¿Ya tenés cuenta? </Text>
-      <Pressable onPress={() => navigation.popTo('Login')}>
-        <Text style={[estilos.textoPie, estilos.enlace]}>Iniciá sesión</Text>
+    <>
+      <View style={estilos.filaPie}>
+        <Text style={estilos.textoPie}>¿Ya tenés cuenta? </Text>
+        <Pressable onPress={() => navigation.popTo('Login')}>
+          <Text style={[estilos.textoPie, estilos.enlace]}>Iniciá sesión</Text>
+        </Pressable>
+      </View>
+      <Pressable
+        style={estilos.filaAyuda}
+        onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
+        hitSlop={8}
+        disabled={creando}
+      >
+        <Text style={[estilos.textoAyudaPie, estilos.enlace]}>¿Tenés problemas para ingresar?</Text>
       </Pressable>
-    </View>
+    </>
   );
 
   return (
@@ -323,11 +366,14 @@ export default function Registro({ navigation }) {
                   etiqueta="Nombre"
                   placeholder="Juan"
                   valor={nombre}
-                  alCambiar={alCambiar('nombre', setNombre)}
+                  alCambiar={alCambiar('nombre', (texto) => setNombre(filtrarNombre(texto)))}
+                  alSalir={salirDe('nombre')}
                   error={errores.nombre ?? ''}
-                  valido={validarNombre(nombre, 'nombre') === ''}
+                  valido={mostrarValido('nombre', nombre)}
                   autoCapitalize="words"
+                  autoCorrect={false}
                   autoComplete="given-name"
+                  textContentType="givenName"
                   maxLength={50}
                 />
                 <CampoTexto
@@ -335,11 +381,14 @@ export default function Registro({ navigation }) {
                   etiqueta="Apellido"
                   placeholder="Montes"
                   valor={apellido}
-                  alCambiar={alCambiar('apellido', setApellido)}
+                  alCambiar={alCambiar('apellido', (texto) => setApellido(filtrarNombre(texto)))}
+                  alSalir={salirDe('apellido')}
                   error={errores.apellido ?? ''}
-                  valido={validarNombre(apellido, 'apellido') === ''}
+                  valido={mostrarValido('apellido', apellido)}
                   autoCapitalize="words"
+                  autoCorrect={false}
                   autoComplete="family-name"
+                  textContentType="familyName"
                   maxLength={50}
                 />
               </View>
@@ -349,14 +398,16 @@ export default function Registro({ navigation }) {
                 icono="mail"
                 placeholder="tunombre@correo.com"
                 valor={correo}
-                alCambiar={alCambiar('correo', setCorreo)}
+                alCambiar={alCambiar('correo', (texto) => setCorreo(filtrarCorreo(texto)))}
+                alSalir={salirDe('correo')}
                 error={errores.correo ?? ''}
                 ayudaAlEnfocar="Vas a entrar con este correo y te mandamos ahí el enlace de verificación."
-                valido={!correoYaRegistrado && FORMATO_CORREO.test(correo.trim())}
+                valido={!correoYaRegistrado && mostrarValido('correo', correo)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="email"
+                textContentType="emailAddress"
               />
 
               {correoYaRegistrado ? (
@@ -401,12 +452,14 @@ export default function Registro({ navigation }) {
                     placeholder="Mínimo 8 caracteres"
                     valor={contrasena}
                     alCambiar={alCambiar('contrasena', setContrasena)}
+                    alSalir={salirDe('contrasena')}
                     error={errores.contrasena ?? ''}
+                    valido={mostrarValido('contrasena', contrasena)}
                     seguro
                     autoCapitalize="none"
                     autoComplete="new-password"
                   />
-                  {contrasena !== '' && (
+                  {tocados.contrasena && contrasena !== '' && (
                     <>
                       <View style={estilos.barrasFortaleza}>
                         {[1, 2, 3, 4].map((numero) => (
@@ -436,9 +489,10 @@ export default function Registro({ navigation }) {
                     placeholder="Repetí la contraseña"
                     valor={repetir}
                     alCambiar={alCambiar('repetir', setRepetir)}
+                    alSalir={salirDe('repetir')}
                     error={errores.repetir ?? ''}
-                    mensajeExito={coinciden ? 'Las contraseñas coinciden' : ''}
-                    valido={coinciden}
+                    mensajeExito={tocados.repetir && coinciden ? 'Las contraseñas coinciden' : ''}
+                    valido={tocados.repetir && coinciden}
                     seguro
                     autoCapitalize="none"
                     autoComplete="new-password"
@@ -491,11 +545,12 @@ export default function Registro({ navigation }) {
           ) : (
             <>
               <Text style={estilos.titulo}>Últimos datos</Text>
-              <Text style={estilos.subtitulo}>Opcionales, pero nos ayudan a reconocerte en el salón.</Text>
+              <Text style={estilos.subtitulo}>
+                Con tu teléfono o tu DNI te encontramos en la caja para sumarte puntos. Cargá al menos uno.
+              </Text>
 
               <CampoTexto
                 etiqueta="Teléfono"
-                opcional
                 icono="smartphone"
                 prefijo={
                   <View style={estilos.prefijo}>
@@ -505,12 +560,26 @@ export default function Registro({ navigation }) {
                 }
                 placeholder="387 000 0000"
                 valor={telefono}
-                alCambiar={alCambiar('telefono', setTelefono)}
+                alCambiar={alCambiar('telefono', (texto) => setTelefono(filtrarTelefono(texto)))}
+                alSalir={salirDe('telefono')}
                 error={errores.telefono ?? ''}
-                ayuda="Con tu teléfono también te encontramos en la caja para sumarte puntos."
                 keyboardType="phone-pad"
                 autoComplete="tel"
+                textContentType="telephoneNumber"
                 maxLength={20}
+              />
+
+              <CampoTexto
+                etiqueta="DNI"
+                icono="credit-card"
+                placeholder="30123456"
+                valor={dni}
+                alCambiar={alCambiar('dni', (texto) => setDni(filtrarDni(texto)))}
+                alSalir={salirDe('dni')}
+                error={errores.dni ?? ''}
+                ayuda="Sin puntos. Si no querés dar tu teléfono, con el DNI alcanza."
+                keyboardType="number-pad"
+                maxLength={8}
               />
 
               <Text style={estilos.etiqueta}>
@@ -522,7 +591,7 @@ export default function Registro({ navigation }) {
               >
                 <Feather name="calendar" size={20} color={colores.textoSecundario} />
                 <Text style={[estilos.textoFecha, !fechaNacimiento && estilos.textoFechaVacia]}>
-                  {fechaNacimiento ? formatearFecha(fechaNacimiento) : 'Elegí tu fecha'}
+                  {fechaNacimiento ? formatearFechaLarga(fechaNacimiento) : 'Elegí tu fecha'}
                 </Text>
                 <Feather name="chevron-down" size={20} color={colores.textoSecundario} />
               </Pressable>
@@ -947,6 +1016,13 @@ function crearEstilos(c) {
       fontFamily: 'Inter_400Regular',
       fontSize: 15,
       color: c.textoSecundario,
+    },
+    filaAyuda: {
+      alignSelf: 'center',
+      marginTop: 12,
+    },
+    textoAyudaPie: {
+      fontSize: 14,
     },
   });
 }

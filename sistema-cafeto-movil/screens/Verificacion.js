@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { deleteUser, sendEmailVerification, signOut } from 'firebase/auth';
@@ -34,6 +35,7 @@ export default function Verificacion() {
   const [entrando, setEntrando] = useState(false);
   const yaAbrioCorreo = useRef(false);
 
+  const navigation = useNavigation();
   const { colores, isotipo, cambiarTema } = useTema();
   const { avisar } = useAviso();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
@@ -48,10 +50,12 @@ export default function Verificacion() {
   useEffect(() => {
     if (verificado) return;
     const consulta = setInterval(() => {
-      auth.currentUser
+      const actual = auth.currentUser;
+      if (!actual) return;
+      actual
         .reload()
         .then(() => {
-          if (auth.currentUser.emailVerified) setVerificado(true);
+          if (auth.currentUser?.emailVerified) setVerificado(true);
         })
         .catch(() => null);
     }, INTERVALO_CONSULTA);
@@ -87,7 +91,7 @@ export default function Verificacion() {
           return;
         }
       } catch (error) {
-        // si no se pudo, sigue con las opciones de abajo
+        yaAbrioCorreo.current = false;
       }
     }
 
@@ -119,13 +123,18 @@ export default function Verificacion() {
   };
 
   const reenviarEnlace = async () => {
+    if (!auth.currentUser) return;
     try {
       await sendEmailVerification(auth.currentUser);
       setSegundos(ESPERA_REENVIO);
       avisar('exito', 'Enlace enviado', `Te mandamos un nuevo enlace a ${correo}.`);
     } catch (error) {
       if (error.code === 'auth/too-many-requests') {
-        avisar('advertencia', 'Esperá un momento', 'Pediste varios enlaces seguidos. Probá de nuevo en unos minutos.');
+        avisar('advertencia', 'Esperá un momento', 'Se pidieron varios enlaces seguidos desde esta red. Probá de nuevo en unos minutos.');
+      } else if (error.code === 'auth/quota-exceeded') {
+        avisar('advertencia', 'Probá mañana', 'Hoy ya se mandaron todos los correos que permite el sistema.');
+      } else if (error.code === 'auth/network-request-failed') {
+        avisar('error', 'Sin conexión', 'Revisá tu conexión y tocá «Reenviar enlace» de nuevo.');
       } else {
         avisar('error', 'Error', `No pudimos reenviar el enlace.\n\nCódigo: ${error.code ?? 'desconocido'}`);
       }
@@ -158,9 +167,15 @@ export default function Verificacion() {
   };
 
   const empezar = async () => {
+    if (!auth.currentUser) return;
     setEntrando(true);
     marcarEntrada();
-    await auth.currentUser.getIdToken(true);
+    try {
+      await auth.currentUser.getIdToken(true);
+    } catch (error) {
+      setEntrando(false);
+      avisar('error', 'No pudimos entrar', 'Revisá tu conexión y tocá «Entrar a mi cuenta» de nuevo.');
+    }
   };
 
   if (!fuentesCargadas) {
@@ -276,6 +291,13 @@ export default function Verificacion() {
 
             <View style={estilos.espaciador} />
             <Text style={estilos.pie}>Apenas toques el enlace, esta pantalla se actualiza sola.</Text>
+            <Pressable
+              style={estilos.filaAyuda}
+              onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
+              hitSlop={8}
+            >
+              <Text style={[estilos.textoChico, estilos.enlace]}>¿No te llega? Mirá cómo resolverlo</Text>
+            </Pressable>
           </>
         )}
       </ScrollView>
@@ -472,6 +494,10 @@ function crearEstilos(c) {
       fontSize: 14,
       color: c.textoSecundario,
       textAlign: 'center',
+    },
+    filaAyuda: {
+      alignSelf: 'center',
+      marginTop: 12,
     },
   });
 }

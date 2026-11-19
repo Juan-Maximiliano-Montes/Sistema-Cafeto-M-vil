@@ -1,36 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { onIdTokenChanged, signOut } from 'firebase/auth';
-import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
-import { useAviso } from '../src/aviso/AvisoContext';
-import Home from '../screens/Home';
+import { useSesion } from '../src/sesion/SesionContext';
+import Inicio from '../screens/Inicio';
+import Productos from '../screens/Productos';
 import Beneficios from '../screens/Beneficios';
-import Carta from '../screens/Carta';
+import Gestion from '../screens/Gestion';
 import Perfil from '../screens/Perfil';
+import Cuenta from '../screens/Cuenta';
 
 const Tab = createBottomTabNavigator();
 
 const iconos = {
-  Inicio: 'home-outline',
-  Beneficios: 'gift-outline',
-  Carta: 'book-outline',
-  Perfil: 'person-outline',
+  Inicio: ['home', 'home-outline'],
+  Productos: ['storefront', 'storefront-outline'],
+  Beneficios: ['gift', 'gift-outline'],
+  Gestion: ['briefcase', 'briefcase-outline'],
+  Perfil: ['person', 'person-outline'],
 };
+
+function PestanaPerfil() {
+  const { rol } = useSesion();
+  return rol === 'cliente' ? <Perfil /> : <Cuenta />;
+}
 
 export default function Pestanas() {
   const { colores } = useTema();
-  const { avisar } = useAviso();
+  const { rol } = useSesion();
   const insets = useSafeAreaInsets();
   const abajo = Math.max(insets.bottom, 10);
-  const [usuario, setUsuario] = useState(auth.currentUser);
 
-  useEffect(() => onIdTokenChanged(auth, setUsuario), []);
-
-  const esInvitado = usuario?.isAnonymous ?? true;
+  const etiquetas = {
+    Inicio: 'Inicio',
+    Productos: 'Productos',
+    Beneficios: 'Beneficios',
+    Gestion: 'Gestión',
+    Perfil: rol === 'invitado' ? 'Entrar' : rol === 'equipo' ? 'Cuenta' : 'Perfil',
+  };
 
   return (
     <Tab.Navigator
@@ -38,6 +47,7 @@ export default function Pestanas() {
         headerShown: false,
         tabBarActiveTintColor: colores.marca,
         tabBarInactiveTintColor: colores.textoTenue,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colores.superficie,
           borderTopColor: colores.borde,
@@ -53,36 +63,23 @@ export default function Pestanas() {
             numberOfLines={1}
             style={{ fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 14, color, textAlign: 'center' }}
           >
-            {esInvitado && route.name === 'Perfil' ? 'Entrar' : route.name}
+            {etiquetas[route.name]}
           </Text>
         ),
-        tabBarIcon: ({ color, size }) => <Ionicons name={iconos[route.name]} size={size} color={color} />,
+        tabBarIcon: ({ color, size, focused }) => (
+          <Ionicons name={iconos[route.name][focused ? 0 : 1]} size={size} color={color} />
+        ),
+        tabBarAccessibilityLabel: etiquetas[route.name],
       })}
     >
-      <Tab.Screen name="Inicio" component={Home} />
-      <Tab.Screen name="Beneficios" component={Beneficios} />
-      <Tab.Screen name="Carta" component={Carta} />
-      <Tab.Screen
-        name="Perfil"
-        component={Perfil}
-        options={{ title: esInvitado ? 'Entrar' : 'Perfil' }}
-        listeners={{
-          tabPress: (evento) => {
-            if (esInvitado) {
-              evento.preventDefault();
-              avisar(
-                'advertencia',
-                '¿Entrar con tu cuenta?',
-                'Vas a salir del modo invitado para iniciar sesión o crear tu cuenta.',
-                [
-                  { texto: 'Cancelar', estilo: 'cancelar' },
-                  { texto: 'Entrar', alPresionar: () => signOut(auth) },
-                ]
-              );
-            }
-          },
-        }}
-      />
+      <Tab.Screen name="Inicio" component={Inicio} />
+      <Tab.Screen name="Productos" component={Productos} />
+      {rol === 'equipo' ? (
+        <Tab.Screen name="Gestion" component={Gestion} />
+      ) : (
+        <Tab.Screen name="Beneficios" component={Beneficios} />
+      )}
+      <Tab.Screen name="Perfil" component={PestanaPerfil} />
     </Tab.Navigator>
   );
 }

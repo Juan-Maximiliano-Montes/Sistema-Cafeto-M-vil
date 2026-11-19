@@ -10,6 +10,7 @@ export default function CampoTexto({
   prefijo,
   valor,
   alCambiar,
+  alSalir,
   error = '',
   mensajeExito = '',
   ayuda = '',
@@ -57,7 +58,10 @@ export default function CampoTexto({
           value={valor}
           onChangeText={alCambiar}
           onFocus={() => setEnfocado(true)}
-          onBlur={() => setEnfocado(false)}
+          onBlur={() => {
+            setEnfocado(false);
+            if (alSalir) alSalir();
+          }}
           secureTextEntry={seguro && !mostrar}
           {...propsEntrada}
         />
