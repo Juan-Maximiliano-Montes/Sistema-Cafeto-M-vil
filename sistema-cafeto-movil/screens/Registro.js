@@ -88,6 +88,8 @@ export default function Registro({ navigation }) {
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   const fortaleza = medirFortaleza(contrasena);
+  const colorFortaleza =
+    fortaleza.puntaje === 4 ? colores.exito : fortaleza.segura ? colores.marca : colores.peligro;
   const coinciden = repetir !== '' && repetir === contrasena;
   const paso1Completo =
     nombre.trim() !== '' && apellido.trim() !== '' && correo.trim() !== '' && contrasena !== '' && repetir !== '';
@@ -459,7 +461,7 @@ export default function Registro({ navigation }) {
                     autoCapitalize="none"
                     autoComplete="new-password"
                   />
-                  {tocados.contrasena && contrasena !== '' && (
+                  {contrasena !== '' && (
                     <>
                       <View style={estilos.barrasFortaleza}>
                         {[1, 2, 3, 4].map((numero) => (
@@ -467,16 +469,15 @@ export default function Registro({ navigation }) {
                             key={numero}
                             style={[
                               estilos.barraFortaleza,
-                              numero <= fortaleza.puntaje && {
-                                backgroundColor: fortaleza.segura ? colores.marca : colores.peligro,
-                              },
+                              numero <= fortaleza.puntaje && { backgroundColor: colorFortaleza },
                             ]}
                           />
                         ))}
                       </View>
                       <View style={estilos.filaFortaleza}>
                         <Text style={estilos.textoFortaleza}>
-                          Fortaleza: <Text style={estilos.nivelFortaleza}>{fortaleza.nivel}</Text>
+                          Fortaleza:{' '}
+                          <Text style={[estilos.nivelFortaleza, { color: colorFortaleza }]}>{fortaleza.nivel}</Text>
                         </Text>
                         <Text style={estilos.textoFortaleza}>{fortaleza.consejo}</Text>
                       </View>

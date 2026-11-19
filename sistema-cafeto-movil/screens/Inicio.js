@@ -161,7 +161,7 @@ export default function Inicio() {
       ? `Hola, ${primerNombre(nombreVisible || usuario?.displayName, 'cliente')}`
       : rol === 'equipo'
       ? `Hola, ${primerNombre(equipo?.nombre, 'equipo')}`
-      : '¡Hola!';
+      : '¡Bienvenido a Cafeto!';
   const desactualizado =
     !actualizando &&
     [destacados, beneficios, ...Object.values(secciones)].some((parte) => parte.estado === 'listo' && parte.error !== '');

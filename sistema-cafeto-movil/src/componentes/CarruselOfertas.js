@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useIsFocused } from '@react-navigation/native';
 import { useTema } from '../tema/TemaContext';
 import { formatearPrecio } from '../utilidades/formato';
@@ -7,6 +8,7 @@ import ImagenProducto from './ImagenProducto';
 
 const INTERVALO = 4500;
 const ALTO = 196;
+const VELO = '#080718';
 
 export default function CarruselOfertas({ productos, alElegir }) {
   const { colores } = useTema();
@@ -57,9 +59,18 @@ export default function CarruselOfertas({ productos, alElegir }) {
       accessibilityRole="button"
       accessibilityLabel={`${item.nombre}. ${formatearPrecio(item.precioOferta ?? item.precio)}`}
     >
-      <ImagenProducto imagen={item.imagen} icono={item.icono} estilo={estilos.fondo} tamanoIcono={64} />
-      <View style={estilos.oscurecido} />
-      <View style={estilos.contenido}>
+      <ImagenProducto imagen={item.imagen} icono={item.icono} estilo={{ width: ancho, height: ALTO }} tamanoIcono={64} />
+      <Svg width={ancho} height={ALTO} style={estilos.velo} pointerEvents="none">
+        <Defs>
+          <LinearGradient id={`velo-${item.id}`} x1="0" y1="0" x2="0" y2={ALTO} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={VELO} stopOpacity="0.06" />
+            <Stop offset="0.38" stopColor={VELO} stopOpacity="0.5" />
+            <Stop offset="1" stopColor={VELO} stopOpacity="0.93" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width={ancho} height={ALTO} fill={`url(#velo-${item.id})`} />
+      </Svg>
+      <View style={[estilos.contenido, { width: ancho, height: ALTO }]}>
         <Text style={[estilos.etiqueta, item.motivo === 'OFERTA' ? estilos.etiquetaOferta : estilos.etiquetaCombo]}>
           {item.motivo === 'OFERTA' && item.porcentajeOferta ? `-${item.porcentajeOferta}% HOY` : 'COMBO'}
         </Text>
@@ -122,10 +133,10 @@ export default function CarruselOfertas({ productos, alElegir }) {
 function crearEstilos(c) {
   return StyleSheet.create({
     marco: { height: ALTO, borderRadius: 20, overflow: 'hidden', backgroundColor: c.marcaSuave },
-    diapositiva: { height: ALTO, justifyContent: 'flex-end' },
-    fondo: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-    oscurecido: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10, 9, 30, 0.52)' },
-    contenido: { padding: 18, gap: 4 },
+    diapositiva: { height: ALTO },
+    velo: { marginTop: -ALTO },
+    contenido: { padding: 18, gap: 4, justifyContent: 'flex-end', marginTop: -ALTO },
+
     etiqueta: {
       alignSelf: 'flex-start',
       fontFamily: 'Inter_700Bold',

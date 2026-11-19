@@ -9,7 +9,7 @@ const NOMBRE_DE_PERSONA = new RegExp(`^[${LETRAS}]+(?:[ '-][${LETRAS}]+)*$`);
 const NO_VA_EN_NOMBRE = new RegExp(`[^${LETRAS}' -]`, 'g');
 const CONTROL = /[\u0000-\u001f\u007f]/;
 const SIMBOLOS_PROHIBIDOS = '<>{}[]\\|^`';
-const NIVELES = ['muy débil', 'débil', 'regular', 'buena', 'fuerte'];
+const NIVELES = ['muy débil', 'débil', 'regular', 'fuerte'];
 
 export function validarCorreo(valor, { obligatorio = false } = {}) {
   const texto = comoTexto(valor).trim();
@@ -76,14 +76,16 @@ export function medirFortaleza(clave) {
     { cumple: /\d/.test(texto), consejo: 'Sumá un número' },
     { cumple: /[^A-Za-z0-9]/.test(texto), consejo: 'Sumá un símbolo' },
   ];
-  const puntaje = pruebas.filter((prueba) => prueba.cumple).length;
+  const cumplidas = pruebas.filter((prueba) => prueba.cumple).length;
   const pendiente = pruebas.find((prueba) => !prueba.cumple);
+  const segura = pruebas[0].cumple && pruebas[1].cumple && pruebas[2].cumple;
+  const puntaje = !texto ? 0 : segura ? (pruebas[3].cumple ? 4 : 3) : cumplidas >= 2 ? 2 : 1;
 
   return {
     puntaje,
-    nivel: NIVELES[puntaje],
+    nivel: NIVELES[Math.max(puntaje, 1) - 1],
     consejo: pendiente ? pendiente.consejo : 'Excelente',
-    segura: pruebas[0].cumple && pruebas[1].cumple && pruebas[2].cumple,
+    segura,
   };
 }
 
