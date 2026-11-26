@@ -11,6 +11,7 @@ import { esOperacionRepetida, mensajeDeError, nuevaClaveOperacion } from '../src
 import { listarProducibles, registrarProduccion } from '../src/api/produccion';
 import { conUnidad, usadoDeMas } from '../src/datos/ajustes';
 import { aIso, describirVencimiento, diasHasta, formatearFechaLarga } from '../src/utilidades/formato';
+import { hapticExito } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
 import { leerCantidad, validarCantidad } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
@@ -128,6 +129,7 @@ export default function Produccion() {
       );
       clave.current = nuevaClaveOperacion();
       if (!montado.current) return;
+      hapticExito();
       setEnviando(false);
       elegir(null);
       cargar();
@@ -256,6 +258,17 @@ export default function Produccion() {
                         alCambiar={(texto) => {
                           setCantidad(texto);
                           setErrores((anteriores) => ({ ...anteriores, cantidad: '' }));
+                        }}
+                        alSalir={() => {
+                          if (limpiar(cantidad)) {
+                            setErrores((anteriores) => ({
+                              ...anteriores,
+                              cantidad: validarCantidad(cantidad, {
+                                etiqueta: 'La cantidad producida',
+                                entera: item.producto.cantidadEntera,
+                              }),
+                            }));
+                          }
                         }}
                         error={errores.cantidad}
                         keyboardType="decimal-pad"

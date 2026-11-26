@@ -11,7 +11,6 @@ import Pestanas from './Pestanas';
 import Login from '../screens/Login';
 import Registro from '../screens/Registro';
 import Verificacion from '../screens/Verificacion';
-import EntrarEquipo from '../screens/EntrarEquipo';
 import Ayuda from '../screens/Ayuda';
 import MiQR from '../screens/MiQR';
 import MisPuntos from '../screens/MisPuntos';
@@ -90,7 +89,6 @@ export default function Navigation() {
               <Stack.Group screenOptions={{ presentation: 'modal' }}>
                 <Stack.Screen name="Login" component={Login} />
                 <Stack.Screen name="Registro" component={Registro} />
-                <Stack.Screen name="EntrarEquipo" component={EntrarEquipo} />
               </Stack.Group>
             )}
             {rol === 'cliente' && (

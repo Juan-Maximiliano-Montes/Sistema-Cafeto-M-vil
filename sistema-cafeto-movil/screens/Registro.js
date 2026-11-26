@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -12,10 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Feather, FontAwesome, Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createUserWithEmailAndPassword,
@@ -27,6 +25,7 @@ import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import CampoTexto from '../src/componentes/CampoTexto';
+import ModalLegal from '../src/componentes/ModalLegal';
 import { aIso, formatearFechaLarga } from '../src/utilidades/formato';
 import { limpiar } from '../src/utilidades/texto';
 import {
@@ -34,6 +33,7 @@ import {
   filtrarDni,
   filtrarNombre,
   filtrarTelefono,
+  formatearTelefonoGuardado,
   medirFortaleza,
   validarCorreo,
   validarDni,
@@ -58,13 +58,6 @@ Código: ${error?.code ?? 'desconocido'}`;
 }
 
 export default function Registro({ navigation }) {
-  const [fuentesCargadas] = useFonts({
-    Caveat_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-  });
-
   const [paso, setPaso] = useState(1);
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -81,11 +74,20 @@ export default function Registro({ navigation }) {
   const [tocados, setTocados] = useState({});
   const [correoYaRegistrado, setCorreoYaRegistrado] = useState(false);
   const [creando, setCreando] = useState(false);
+  const [legal, setLegal] = useState(null);
   const enviando = useRef(false);
+  const montado = useRef(true);
 
   const { tema, colores, isotipo, cambiarTema } = useTema();
   const { avisar } = useAviso();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   const fortaleza = medirFortaleza(contrasena);
   const colorFortaleza =
@@ -214,7 +216,7 @@ export default function Registro({ navigation }) {
   };
 
   const mostrarErrorDeRegistro = (error) => {
-    switch (error.code) {
+    switch (error?.code) {
       case 'auth/email-already-in-use':
         setCorreoYaRegistrado(true);
         setErrores({ correo: 'Ese correo ya tiene una cuenta en Cafeto.' });
@@ -236,7 +238,7 @@ export default function Registro({ navigation }) {
         avisar('error', 'Sin conexión', 'Revisá el wifi o los datos del teléfono.');
         break;
       default:
-        avisar('error', 'Error', `No pudimos crear la cuenta.\n\nCódigo: ${error.code ?? 'desconocido'}`);
+        avisar('error', 'Error', `No pudimos crear la cuenta.\n\nCódigo: ${error?.code ?? 'desconocido'}`);
     }
   };
 
@@ -253,7 +255,7 @@ export default function Registro({ navigation }) {
         JSON.stringify({
           nombre: limpiar(nombre),
           apellido: limpiar(apellido),
-          telefono: limpiar(telefono) ? `+54 ${limpiar(telefono)}` : null,
+          telefono: formatearTelefonoGuardado(telefono),
           dni: limpiar(dni) || null,
           fechaNacimiento: aIso(fechaNacimiento),
           aceptaPromociones,
@@ -266,21 +268,26 @@ export default function Registro({ navigation }) {
       }
     } catch (error) {
       enviando.current = false;
+      if (!montado.current) return;
       setCreando(false);
       mostrarErrorDeRegistro(error);
     }
   };
 
   const iniciarSesionConEseCorreo = () => {
-    navigation.popTo('Login', { correo: correo.trim() });
+    navigation.replace('Login', { correo: correo.trim() });
   };
 
   const recuperarContrasena = async () => {
     try {
       await sendPasswordResetEmail(auth, correo.trim());
-      avisar('exito', 'Revisá tu correo', `Te mandamos un enlace a ${correo.trim()} para que elijas una contraseña nueva.`);
+      if (montado.current) {
+        avisar('exito', 'Revisá tu correo', `Te mandamos un enlace a ${correo.trim()} para que elijas una contraseña nueva.`);
+      }
     } catch (error) {
-      avisar('error', 'Error', `No pudimos enviar el correo.\n\nCódigo: ${error.code ?? 'desconocido'}`);
+      if (montado.current) {
+        avisar('error', 'Error', `No pudimos enviar el correo.\n\nCódigo: ${error?.code ?? 'desconocido'}`);
+      }
     }
   };
 
@@ -290,38 +297,22 @@ export default function Registro({ navigation }) {
     limpiarError('correo');
   };
 
-  const avisarProximamente = (proveedor) => {
-    avisar('advertencia', 'Próximamente', `El registro con ${proveedor} todavía no está disponible.`);
+  const alternarTerminos = () => {
+    setAceptaTerminos((actual) => !actual);
+    limpiarError('terminos');
   };
-
-  if (!fuentesCargadas) {
-    return (
-      <View style={[estilos.pantalla, estilos.centrado]}>
-        <ActivityIndicator size="large" color={colores.marca} />
-      </View>
-    );
-  }
-
-  const casilla = (marcada, alTocar, contenido) => (
-    <Pressable style={estilos.filaCasilla} onPress={alTocar}>
-      <View style={[estilos.casilla, marcada && estilos.casillaMarcada]}>
-        {marcada && <Feather name="check" size={16} color={colores.textoSobreMarca} />}
-      </View>
-      <Text style={estilos.textoCasilla}>{contenido}</Text>
-    </Pressable>
-  );
 
   const pie = (
     <>
       <View style={estilos.filaPie}>
         <Text style={estilos.textoPie}>¿Ya tenés cuenta? </Text>
-        <Pressable onPress={() => navigation.popTo('Login')}>
+        <Pressable onPress={() => navigation.replace('Login')} disabled={creando}>
           <Text style={[estilos.textoPie, estilos.enlace]}>Iniciá sesión</Text>
         </Pressable>
       </View>
       <Pressable
         style={estilos.filaAyuda}
-        onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
+        onPress={() => navigation.navigate('Ayuda')}
         hitSlop={8}
         disabled={creando}
       >
@@ -333,10 +324,7 @@ export default function Registro({ navigation }) {
   return (
     <SafeAreaView style={estilos.pantalla}>
       <StatusBar style={colores.barraEstado} />
-      <KeyboardAvoidingView
-        style={estilos.pantalla}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={estilos.pantalla} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={estilos.contenido}
           keyboardShouldPersistTaps="handled"
@@ -510,32 +498,9 @@ export default function Registro({ navigation }) {
                     onPress={continuar}
                     disabled={!paso1Completo}
                   >
-                    <Text
-                      style={[estilos.textoBotonPrincipal, !paso1Completo && estilos.textoBotonDeshabilitado]}
-                    >
+                    <Text style={[estilos.textoBotonPrincipal, !paso1Completo && estilos.textoBotonDeshabilitado]}>
                       Continuar
                     </Text>
-                  </Pressable>
-
-                  <View style={estilos.separador}>
-                    <View style={estilos.linea} />
-                    <Text style={estilos.textoSeparador}>o</Text>
-                    <View style={estilos.linea} />
-                  </View>
-
-                  <Pressable
-                    style={({ pressed }) => [estilos.botonSocial, estilos.botonGoogle, pressed && estilos.presionado]}
-                    onPress={() => avisarProximamente('Google')}
-                  >
-                    <FontAwesome name="google" size={20} color="#4285F4" />
-                    <Text style={[estilos.textoBotonSocial, estilos.textoGoogle]}>Continuar con Google</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [estilos.botonSocial, estilos.botonApple, pressed && estilos.presionado]}
-                    onPress={() => avisarProximamente('Apple')}
-                  >
-                    <FontAwesome name="apple" size={22} color="#FFFFFF" />
-                    <Text style={[estilos.textoBotonSocial, estilos.textoApple]}>Continuar con Apple</Text>
                   </Pressable>
 
                   <View style={estilos.espaciador} />
@@ -624,22 +589,44 @@ export default function Registro({ navigation }) {
               )}
 
               <View style={estilos.casillas}>
-                {casilla(
-                  aceptaTerminos,
-                  () => {
-                    setAceptaTerminos(!aceptaTerminos);
-                    limpiarError('terminos');
-                  },
-                  <>
-                    Acepto los <Text style={estilos.enlace}>Términos y Condiciones</Text> y la{' '}
-                    <Text style={estilos.enlace}>Política de privacidad</Text>
-                  </>
-                )}
-                {casilla(
-                  aceptaPromociones,
-                  () => setAceptaPromociones(!aceptaPromociones),
-                  'Quiero recibir promociones y novedades por correo'
-                )}
+                <View style={estilos.filaCasilla}>
+                  <Pressable
+                    onPress={alternarTerminos}
+                    hitSlop={8}
+                    disabled={creando}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: aceptaTerminos }}
+                    accessibilityLabel="Aceptar términos y política de privacidad"
+                  >
+                    <View style={[estilos.casilla, aceptaTerminos && estilos.casillaMarcada]}>
+                      {aceptaTerminos && <Feather name="check" size={16} color={colores.textoSobreMarca} />}
+                    </View>
+                  </Pressable>
+                  <Text style={estilos.textoCasilla}>
+                    <Text onPress={!creando ? alternarTerminos : undefined}>Acepto los </Text>
+                    <Text style={estilos.enlace} onPress={() => setLegal('terminos')}>
+                      Términos y Condiciones
+                    </Text>
+                    <Text onPress={!creando ? alternarTerminos : undefined}> y la </Text>
+                    <Text style={estilos.enlace} onPress={() => setLegal('privacidad')}>
+                      Política de privacidad
+                    </Text>
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={estilos.filaCasilla}
+                  onPress={() => setAceptaPromociones(!aceptaPromociones)}
+                  disabled={creando}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: aceptaPromociones }}
+                >
+                  <View style={[estilos.casilla, aceptaPromociones && estilos.casillaMarcada]}>
+                    {aceptaPromociones && <Feather name="check" size={16} color={colores.textoSobreMarca} />}
+                  </View>
+                  <Text style={estilos.textoCasilla}>Quiero recibir promociones y novedades por correo</Text>
+                </Pressable>
+
                 {errores.terminos ? (
                   <View style={estilos.filaMensaje}>
                     <Feather name="alert-circle" size={14} color={colores.peligro} />
@@ -675,6 +662,8 @@ export default function Registro({ navigation }) {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ModalLegal visible={legal !== null} tipo={legal} alCerrar={() => setLegal(null)} />
     </SafeAreaView>
   );
 }
@@ -684,10 +673,6 @@ function crearEstilos(c) {
     pantalla: {
       flex: 1,
       backgroundColor: c.fondo,
-    },
-    centrado: {
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     contenido: {
       flexGrow: 1,
@@ -958,50 +943,6 @@ function crearEstilos(c) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-    },
-    separador: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16,
-      marginVertical: 20,
-    },
-    linea: {
-      flex: 1,
-      height: 1,
-      backgroundColor: c.divisor,
-    },
-    textoSeparador: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      color: c.textoSecundario,
-    },
-    botonSocial: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 10,
-      height: 52,
-      borderRadius: 14,
-      borderWidth: 1,
-      marginBottom: 12,
-    },
-    botonGoogle: {
-      backgroundColor: '#FFFFFF',
-      borderColor: '#E6E2D8',
-    },
-    botonApple: {
-      backgroundColor: c.fondoApple,
-      borderColor: c.bordeApple,
-    },
-    textoBotonSocial: {
-      fontFamily: 'Inter_500Medium',
-      fontSize: 16,
-    },
-    textoGoogle: {
-      color: '#161616',
-    },
-    textoApple: {
-      color: '#FFFFFF',
     },
     espaciador: {
       flex: 1,

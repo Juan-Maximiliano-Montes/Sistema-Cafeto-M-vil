@@ -9,7 +9,7 @@ import { useSesion } from '../src/sesion/SesionContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import { mensajeDeError } from '../src/api/cliente';
 import { listarBeneficios } from '../src/api/catalogo';
-import { coloresCategoria } from '../src/datos/ejemplo';
+import { coloresCategoria } from '../src/datos/categorias';
 import { useCuentaCliente } from '../src/cliente/CuentaClienteContext';
 import { formatearNumero } from '../src/utilidades/formato';
 import { alcanzaCategoria, ordenDeCategorias, ordenarBeneficios, resumirPuntos } from '../src/utilidades/puntos';

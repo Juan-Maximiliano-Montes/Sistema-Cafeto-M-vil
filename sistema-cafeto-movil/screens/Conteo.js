@@ -23,8 +23,9 @@ import { cargarConteo, enviarConteo, iniciarConteo, leerConteo } from '../src/ap
 import { listarLotes } from '../src/api/stock';
 import { MOTIVOS_AJUSTE, conUnidad, textoMotivo } from '../src/datos/ajustes';
 import { aIso, describirVencimiento, formatearFechaLarga } from '../src/utilidades/formato';
+import { hapticExito, hapticImpactoSuave } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
-import { leerCantidad, validarCantidad } from '../src/utilidades/validaciones';
+import { leerCantidad, validarCantidad, validarTextoCatalogo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
 import BuscadorProducto from '../src/componentes/BuscadorProducto';
 import CampoTexto from '../src/componentes/CampoTexto';
@@ -163,6 +164,9 @@ export default function Conteo() {
       contada: validarCantidad(hoja.contada, { etiqueta: 'Lo contado', entera: producto.cantidadEntera, permitirCero: !hoja.nuevo }),
       lote: producto.controlaVencimiento && !hoja.nuevo && hoja.idLote === null ? 'Elegí el lote o marcá que es uno nuevo.' : '',
       vence: hoja.nuevo && !hoja.vence ? 'Indicá cuándo vence el lote nuevo.' : '',
+      numero: hoja.nuevo
+        ? validarTextoCatalogo(hoja.numero, { etiqueta: 'El número de lote', minimo: 1, maximo: 40, obligatorio: false })
+        : '',
     };
     if (Object.values(errores).some(Boolean)) {
       setHoja((anterior) => ({ ...anterior, errores }));
@@ -178,6 +182,7 @@ export default function Conteo() {
       }
       const actualizado = await cargarConteo(token, datos);
       if (!montado.current) return;
+      hapticImpactoSuave();
       setConteo(actualizado);
       setHoja(null);
     } catch (problema) {
@@ -208,6 +213,7 @@ export default function Conteo() {
             try {
               const enviado = await enviarConteo(token);
               if (!montado.current) return;
+              hapticExito();
               setConteo(enviado);
               avisar('exito', 'Conteo enviado', 'Ahora lo revisa quien autoriza los ajustes.');
             } catch (problema) {
@@ -418,7 +424,29 @@ export default function Conteo() {
                           icono="tag"
                           placeholder="Como figura en el envase"
                           valor={hoja.numero}
-                          alCambiar={(texto) => setHoja((anterior) => ({ ...anterior, numero: texto }))}
+                          alCambiar={(texto) =>
+                            setHoja((anterior) =>
+                              anterior ? { ...anterior, numero: texto, errores: { ...anterior.errores, numero: '' } } : anterior
+                            )
+                          }
+                          alSalir={() =>
+                            setHoja((anterior) => {
+                              if (!anterior || !limpiar(anterior.numero)) return anterior;
+                              return {
+                                ...anterior,
+                                errores: {
+                                  ...anterior.errores,
+                                  numero: validarTextoCatalogo(anterior.numero, {
+                                    etiqueta: 'El número de lote',
+                                    minimo: 1,
+                                    maximo: 40,
+                                    obligatorio: false,
+                                  }),
+                                },
+                              };
+                            })
+                          }
+                          error={hoja.errores.numero ?? ''}
                           maxLength={40}
                           editable={!trabajando}
                         />
@@ -435,7 +463,29 @@ export default function Conteo() {
                   icono="hash"
                   placeholder={producto.cantidadEntera ? 'Ej.: 12' : 'Ej.: 1,250'}
                   valor={hoja.contada}
-                  alCambiar={(texto) => setHoja((anterior) => ({ ...anterior, contada: texto, errores: {}, error: '' }))}
+                  alCambiar={(texto) =>
+                    setHoja((anterior) =>
+                      anterior
+                        ? { ...anterior, contada: texto, errores: { ...anterior.errores, contada: '' }, error: '' }
+                        : anterior
+                    )
+                  }
+                  alSalir={() =>
+                    setHoja((anterior) => {
+                      if (!anterior || !limpiar(anterior.contada)) return anterior;
+                      return {
+                        ...anterior,
+                        errores: {
+                          ...anterior.errores,
+                          contada: validarCantidad(anterior.contada, {
+                            etiqueta: 'Lo contado',
+                            entera: anterior.producto.cantidadEntera,
+                            permitirCero: !anterior.nuevo,
+                          }),
+                        },
+                      };
+                    })
+                  }
                   error={hoja.errores.contada ?? ''}
                   ayudaAlEnfocar="Si no hay nada, poné 0."
                   keyboardType="decimal-pad"

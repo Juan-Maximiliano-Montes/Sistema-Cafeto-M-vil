@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -7,8 +7,6 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
 import { useSesion } from '../src/sesion/SesionContext';
-import { MODO_DEMO } from '../src/api/cliente';
-import { USUARIOS_DEMO } from '../src/api/demo';
 import { coincide } from '../src/utilidades/texto';
 import { filtrarCorreo, validarCorreo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
@@ -18,7 +16,6 @@ import EstadoVacio from '../src/componentes/EstadoVacio';
 const ACCIONES = {
   login: { texto: 'Ir a iniciar sesión', ruta: 'Login' },
   registro: { texto: 'Crear mi cuenta', ruta: 'Registro' },
-  equipo: { texto: 'Entrar como equipo', ruta: 'EntrarEquipo' },
 };
 
 const PROBLEMAS_CLIENTE = [
@@ -57,7 +54,7 @@ const PROBLEMAS_CLIENTE = [
   {
     id: 'no-coinciden',
     icono: 'close-circle-outline',
-    titulo: 'Me dice que el correo o la contraseña no coinciden',
+    titulo: 'Me dice que los datos no coinciden',
     pasos: [
       'Revisá que el correo esté bien escrito y sin espacios.',
       'La contraseña distingue mayúsculas de minúsculas. Tocá el ojito para ver lo que escribiste.',
@@ -82,22 +79,6 @@ const PROBLEMAS_CLIENTE = [
       'Abrí otra app o página para confirmar que hay internet.',
       'Cerrá la app y volvé a abrirla.',
     ],
-  },
-  {
-    id: 'google',
-    icono: 'logo-google',
-    titulo: '¿Puedo entrar con Google o Apple?',
-    pasos: ['Todavía no: por ahora se entra con correo y contraseña.', 'Te vamos a avisar cuando esté disponible.'],
-  },
-  {
-    id: 'trabajo',
-    icono: 'briefcase-outline',
-    titulo: 'Trabajo en Cafeto y quiero entrar con mi usuario',
-    pasos: [
-      'El equipo entra con el mismo usuario y contraseña del sistema web.',
-      'No hace falta crear una cuenta de cliente: tocá «Entrar como equipo».',
-    ],
-    accion: 'equipo',
   },
 ];
 
@@ -125,7 +106,7 @@ const PROBLEMAS_EQUIPO = [
   {
     id: 'no-coinciden-equipo',
     icono: 'close-circle-outline',
-    titulo: 'Me dice que el usuario o la contraseña no coinciden',
+    titulo: 'Me dice que los datos no coinciden',
     pasos: [
       'El usuario va sin espacios ni tildes.',
       'La contraseña distingue mayúsculas de minúsculas. Tocá el ojito para ver lo que escribiste.',
@@ -164,22 +145,11 @@ const PROBLEMAS_EQUIPO = [
     icono: 'server-outline',
     titulo: 'No conecta con el sistema',
     pasos: [
-      'El sistema está en el servidor del local: revisá que estés conectado al wifi del negocio.',
+      'Revisá la conexión de red del teléfono y volvé a probar.',
       'Si sigue sin conectar, avisale al administrador. Puede que el servidor se esté reiniciando.',
     ],
   },
 ];
-
-const PROBLEMA_DEMO = {
-  id: 'demo',
-  icono: 'flask-outline',
-  titulo: 'Estoy probando la versión demo',
-  pasos: [
-    ...USUARIOS_DEMO.map((usuario) => `Usuario «${usuario.usuario}» o DNI ${usuario.dni}: ${usuario.perfil}.`),
-    `La contraseña de prueba es «${USUARIOS_DEMO[0]?.clave ?? ''}».`,
-  ],
-  accion: 'equipo',
-};
 
 function mensajeDeRestablecer(error) {
   switch (error?.code) {
@@ -196,28 +166,31 @@ function mensajeDeRestablecer(error) {
   }
 }
 
-export default function Ayuda({ navigation, route }) {
+export default function Ayuda({ navigation }) {
   const { colores } = useTema();
   const { usuario, rol } = useSesion();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
-  const fijo = rol === 'cliente' ? 'cliente' : rol === 'equipo' ? 'equipo' : null;
+  const esEquipo = rol === 'equipo';
+  const esCliente = rol === 'cliente';
 
-  const [tipo, setTipo] = useState(fijo ?? (route?.params?.tipo === 'equipo' ? 'equipo' : 'cliente'));
   const [busqueda, setBusqueda] = useState('');
   const [abierto, setAbierto] = useState(null);
   const [correo, setCorreo] = useState(usuario?.email ?? '');
   const [errorCorreo, setErrorCorreo] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [enviadoA, setEnviadoA] = useState('');
+  const montado = useRef(true);
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   const rutas = navigation.getState()?.routeNames ?? [];
-  const problemas = tipo === 'equipo' ? [...PROBLEMAS_EQUIPO, ...(MODO_DEMO ? [PROBLEMA_DEMO] : [])] : PROBLEMAS_CLIENTE;
+  const problemas = esEquipo ? PROBLEMAS_EQUIPO : PROBLEMAS_CLIENTE;
   const visibles = problemas.filter((problema) => coincide(`${problema.titulo} ${problema.pasos.join(' ')}`, busqueda));
-
-  const cambiarTipo = (nuevo) => {
-    setTipo(nuevo);
-    setAbierto(null);
-  };
 
   const alternar = (id) => setAbierto((actual) => (actual === id ? null : id));
 
@@ -235,11 +208,11 @@ export default function Ayuda({ navigation, route }) {
     setEnviadoA('');
     try {
       await sendPasswordResetEmail(auth, correo.trim());
-      setEnviadoA(correo.trim());
+      if (montado.current) setEnviadoA(correo.trim());
     } catch (problema) {
-      setErrorCorreo(mensajeDeRestablecer(problema));
+      if (montado.current) setErrorCorreo(mensajeDeRestablecer(problema));
     } finally {
-      setEnviando(false);
+      if (montado.current) setEnviando(false);
     }
   };
 
@@ -310,37 +283,14 @@ export default function Ayuda({ navigation, route }) {
           <View style={estilos.icono}>
             <Ionicons name="help-buoy-outline" size={34} color={colores.marca} />
           </View>
-          <Text style={estilos.titulo}>{fijo ? 'Ayuda' : '¿Tenés problemas para ingresar?'}</Text>
+          <Text style={estilos.titulo}>{esEquipo || esCliente ? 'Ayuda' : '¿Tenés problemas para ingresar?'}</Text>
           <Text style={estilos.subtitulo}>
-            {fijo === 'equipo'
+            {esEquipo
               ? 'Problemas con tu usuario del sistema y cómo resolverlos.'
-              : fijo === 'cliente'
+              : esCliente
               ? 'Problemas con tu cuenta de cliente y cómo resolverlos.'
               : 'Tocá lo que te pasa y te contamos cómo resolverlo.'}
           </Text>
-
-          {fijo ? null : (
-            <View style={estilos.segmento} accessibilityRole="tablist">
-              {[
-                { clave: 'cliente', texto: 'Soy cliente', icono: 'person-outline' },
-                { clave: 'equipo', texto: 'Trabajo en Cafeto', icono: 'briefcase-outline' },
-              ].map((opcion) => {
-                const activa = tipo === opcion.clave;
-                return (
-                  <Pressable
-                    key={opcion.clave}
-                    style={[estilos.opcion, activa && estilos.opcionActiva]}
-                    onPress={() => cambiarTipo(opcion.clave)}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: activa }}
-                  >
-                    <Ionicons name={opcion.icono} size={16} color={activa ? colores.textoSobreMarca : colores.textoSecundario} />
-                    <Text style={[estilos.textoOpcion, activa && estilos.textoOpcionActiva]}>{opcion.texto}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
 
           <View style={estilos.buscador}>
             <Ionicons name="search-outline" size={20} color={colores.textoSecundario} />
@@ -365,7 +315,7 @@ export default function Ayuda({ navigation, route }) {
               icono="chatbubbles-outline"
               titulo="No encontramos ese problema"
               texto={
-                tipo === 'equipo'
+                esEquipo
                   ? 'Probá con otra palabra o consultale al administrador.'
                   : 'Probá con otra palabra o acercate al mostrador y te ayudamos.'
               }
@@ -412,7 +362,7 @@ export default function Ayuda({ navigation, route }) {
           <View style={estilos.pie}>
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={colores.textoSecundario} />
             <Text style={estilos.textoPie}>
-              {tipo === 'equipo'
+              {esEquipo
                 ? '¿Seguís sin poder entrar? Hablá con el administrador del sistema.'
                 : '¿Seguís sin poder entrar? Acercate al mostrador y te ayudamos en el momento.'}
             </Text>
@@ -439,27 +389,6 @@ function crearEstilos(c) {
     },
     titulo: { fontFamily: 'Caveat_700Bold', fontSize: 34, lineHeight: 40, color: c.titulo, textAlign: 'center' },
     subtitulo: { fontFamily: 'Inter_400Regular', fontSize: 14.5, color: c.textoSecundario, textAlign: 'center', marginTop: -8 },
-    segmento: {
-      flexDirection: 'row',
-      gap: 6,
-      padding: 4,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: c.borde,
-      backgroundColor: c.superficie,
-    },
-    opcion: {
-      flex: 1,
-      flexDirection: 'row',
-      gap: 6,
-      height: 42,
-      borderRadius: 10,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    opcionActiva: { backgroundColor: c.marca },
-    textoOpcion: { fontFamily: 'Inter_600SemiBold', fontSize: 13.5, color: c.textoSecundario },
-    textoOpcionActiva: { color: c.textoSobreMarca },
     buscador: {
       flexDirection: 'row',
       alignItems: 'center',

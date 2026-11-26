@@ -1,7 +1,9 @@
-const URL_API = (process.env.EXPO_PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '');
-const TIEMPO_MAXIMO = 12000;
+export const URL_API = (process.env.EXPO_PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '');
+const coincidenciaOrigen = URL_API.match(/^https?:\/\/[^/?#]+/i);
+export const ORIGEN_API = coincidenciaOrigen ? coincidenciaOrigen[0] : '';
 
-export const MODO_DEMO = URL_API === '';
+const TIEMPO_MAXIMO = 12000;
+const TIEMPO_SALUD = 4000;
 
 export function nuevaClaveOperacion() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -9,6 +11,30 @@ export function nuevaClaveOperacion() {
 
 export function esOperacionRepetida(error) {
   return error?.estado === 409 && typeof error?.datos?.detail === 'string' && /ya se hab[ií]a cargado/i.test(error.datos.detail);
+}
+
+export async function verificarSaludSistema(senalExterna) {
+  if (!URL_API) return false;
+  const controlador = new AbortController();
+  const abortar = () => controlador.abort();
+  if (senalExterna) {
+    if (senalExterna.aborted) return false;
+    senalExterna.addEventListener?.('abort', abortar, { once: true });
+  }
+  const espera = setTimeout(abortar, TIEMPO_SALUD);
+  try {
+    const respuesta = await fetch(`${URL_API}/salud/`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controlador.signal,
+    });
+    return respuesta.ok;
+  } catch (error) {
+    return false;
+  } finally {
+    clearTimeout(espera);
+    senalExterna?.removeEventListener?.('abort', abortar);
+  }
 }
 
 export async function solicitud(ruta, { metodo = 'GET', cuerpo, token, firebase = false, claveOperacion } = {}) {

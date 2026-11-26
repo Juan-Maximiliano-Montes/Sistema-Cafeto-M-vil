@@ -8,7 +8,6 @@ import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import { useSesion } from '../src/sesion/SesionContext';
 import { useErrorEquipo } from '../src/sesion/useErrorEquipo';
-import { MODO_DEMO } from '../src/api/cliente';
 import { leerPanel } from '../src/api/panel';
 import { formatearNumero, formatearPrecio } from '../src/utilidades/formato';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
@@ -180,9 +179,6 @@ export default function Gestion() {
             {panel.indicadores.length === 0 && panel.avisos.length === 0 ? (
               <Text style={estilos.todoBien}>Todo en orden por ahora: no hay nada urgente.</Text>
             ) : null}
-            {MODO_DEMO && panel.indicadores.length > 0 ? (
-              <Text style={estilos.nota}>En la demo, lo vendido y las cajas son números de ejemplo.</Text>
-            ) : null}
           </>
         ) : null}
 
@@ -228,7 +224,7 @@ export default function Gestion() {
 
         <Pressable
           style={estilos.ayuda}
-          onPress={() => navigation.navigate('Ayuda', { tipo: 'equipo' })}
+          onPress={() => navigation.navigate('Ayuda')}
           accessibilityRole="button"
         >
           <Ionicons name="help-circle-outline" size={18} color={colores.textoSecundario} />
@@ -288,7 +284,6 @@ function crearEstilos(c) {
     avisoError: { borderColor: c.bordePeligro, backgroundColor: c.fondoPeligro },
     textoAviso: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13.5, lineHeight: 19, color: c.texto },
     todoBien: { fontFamily: 'Inter_400Regular', fontSize: 13.5, color: c.textoSecundario },
-    nota: { fontFamily: 'Inter_400Regular', fontSize: 12, color: c.textoTenue },
     grupo: { gap: 10 },
     seccion: { fontFamily: 'Inter_700Bold', fontSize: 12, letterSpacing: 2, color: c.textoSecundario, marginTop: 8 },
     tarea: {

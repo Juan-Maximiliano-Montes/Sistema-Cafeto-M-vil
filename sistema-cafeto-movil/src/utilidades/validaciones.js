@@ -68,6 +68,13 @@ export function validarTelefono(valor, { obligatorio = false } = {}) {
   return '';
 }
 
+export function formatearTelefonoGuardado(valor) {
+  const limpio = limpiar(valor);
+  if (!limpio) return null;
+  if (limpio.startsWith('+')) return limpio;
+  return `+54 ${limpio.replace(/^54\s*/, '')}`;
+}
+
 export function medirFortaleza(clave) {
   const texto = comoTexto(clave);
   const pruebas = [

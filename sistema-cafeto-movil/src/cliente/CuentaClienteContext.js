@@ -2,9 +2,10 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSesion } from '../sesion/SesionContext';
 import { mensajeDeError } from '../api/cliente';
-import { leerCuenta, vincularCliente } from '../api/clientes';
+import { actualizarPerfilCliente, leerCuenta, vincularCliente } from '../api/clientes';
 import { aIso } from '../utilidades/formato';
 import { limpiar } from '../utilidades/texto';
+import { formatearTelefonoGuardado } from '../utilidades/validaciones';
 
 const CuentaClienteContext = createContext(null);
 
@@ -24,7 +25,20 @@ function clavePerfil(usuario) {
   return `cafeto:perfil:${usuario.uid}`;
 }
 
-async function leerPerfil(usuario) {
+function normalizarPerfil(datos) {
+  if (!datos || typeof datos !== 'object' || Array.isArray(datos)) return null;
+  return {
+    nombre: typeof datos.nombre === 'string' ? limpiar(datos.nombre) : '',
+    apellido: typeof datos.apellido === 'string' ? limpiar(datos.apellido) : '',
+    telefono: typeof datos.telefono === 'string' ? limpiar(datos.telefono) : '',
+    dni: typeof datos.dni === 'string' ? limpiar(datos.dni) : '',
+    fechaNacimiento: aIso(datos.fechaNacimiento),
+    aceptaPromociones: datos.aceptaPromociones === true,
+  };
+}
+
+async function leerPerfilLocal(usuario) {
+  if (!usuario?.uid) return {};
   try {
     const texto = await AsyncStorage.getItem(clavePerfil(usuario));
     const datos = texto ? JSON.parse(texto) : {};
@@ -35,7 +49,7 @@ async function leerPerfil(usuario) {
 }
 
 async function datosParaVincular(usuario, { conDni = true } = {}) {
-  const guardado = await leerPerfil(usuario);
+  const guardado = await leerPerfilLocal(usuario);
   const partes = limpiar(usuario.displayName).split(' ').filter(Boolean);
   return {
     nombre: limpiar(guardado.nombre) || partes[0] || '',
@@ -43,12 +57,26 @@ async function datosParaVincular(usuario, { conDni = true } = {}) {
     telefono: limpiar(guardado.telefono) || null,
     dni: conDni ? limpiar(guardado.dni) || null : null,
     fecha_nacimiento: aIso(guardado.fechaNacimiento) ?? null,
+    acepta_promociones: guardado.aceptaPromociones === true,
   };
 }
 
-async function guardarEnPerfil(usuario, cambios) {
-  const guardado = await leerPerfil(usuario);
-  await AsyncStorage.setItem(clavePerfil(usuario), JSON.stringify({ ...guardado, ...cambios })).catch(() => null);
+async function persistirPerfilLocal(usuario, cambios) {
+  const guardado = await leerPerfilLocal(usuario);
+  const combinado = { ...guardado, ...cambios };
+  await AsyncStorage.setItem(clavePerfil(usuario), JSON.stringify(combinado));
+  return normalizarPerfil(combinado);
+}
+
+function extraerCambiosRemotos(datos) {
+  if (!datos) return {};
+  const cambios = {};
+  if (datos.nombre !== undefined) cambios.nombre = datos.nombre;
+  if (datos.apellido !== undefined) cambios.apellido = datos.apellido;
+  if (datos.telefono !== undefined) cambios.telefono = datos.telefono;
+  if (datos.fechaNacimiento !== undefined) cambios.fechaNacimiento = datos.fechaNacimiento;
+  if (datos.aceptaPromociones !== undefined) cambios.aceptaPromociones = datos.aceptaPromociones;
+  return cambios;
 }
 
 export function camposDelAlta(error) {
@@ -72,6 +100,7 @@ export function estadoDelError(error) {
 export function CuentaClienteProvider({ children }) {
   const { rol, usuario } = useSesion();
   const [cuenta, setCuenta] = useState(null);
+  const [perfil, setPerfil] = useState(null);
   const [estado, setEstado] = useState('inactivo');
   const [error, setError] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -80,13 +109,36 @@ export function CuentaClienteProvider({ children }) {
   const dniRechazado = useRef(false);
   const esCliente = rol === 'cliente' && Boolean(usuario);
 
-  const listo = useCallback((datos) => {
-    setCuenta(datos);
-    setError('');
-    setCodigo('');
-    setFaltan([]);
-    setEstado('listo');
-  }, []);
+  useEffect(() => {
+    if (!esCliente || !usuario?.uid) {
+      setPerfil(null);
+      return undefined;
+    }
+    let vigente = true;
+    leerPerfilLocal(usuario).then((guardado) => {
+      if (vigente) setPerfil(normalizarPerfil(guardado));
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [esCliente, usuario]);
+
+  const listo = useCallback(
+    async (datos, esVigente) => {
+      const remotos = extraerCambiosRemotos(datos);
+      if (usuario?.uid && Object.keys(remotos).length > 0) {
+        const actualizado = await persistirPerfilLocal(usuario, remotos).catch(() => null);
+        if (actualizado && (!esVigente || esVigente())) setPerfil(actualizado);
+      }
+      if (esVigente && !esVigente()) return;
+      setCuenta(datos);
+      setError('');
+      setCodigo('');
+      setFaltan([]);
+      setEstado('listo');
+    },
+    [usuario]
+  );
 
   const cargar = useCallback(async () => {
     const actual = ++consulta.current;
@@ -108,7 +160,7 @@ export function CuentaClienteProvider({ children }) {
         datos = await vincularCliente(usuario, await datosParaVincular(usuario, { conDni: !dniRechazado.current }));
       }
       if (actual !== consulta.current) return;
-      listo(datos);
+      await listo(datos, () => actual === consulta.current);
     } catch (problema) {
       if (actual !== consulta.current) return;
       if (problema?.datos?.codigo === 'DNI_NO_COINCIDE') dniRechazado.current = true;
@@ -127,9 +179,13 @@ export function CuentaClienteProvider({ children }) {
   const buscarConDni = useCallback(
     async (dni) => {
       const actual = ++consulta.current;
-      const datos = await vincularCliente(usuario, { ...(await datosParaVincular(usuario)), dni });
-      await guardarEnPerfil(usuario, { dni });
-      if (actual === consulta.current) listo(datos);
+      const dniLimpio = limpiar(dni);
+      const datos = await vincularCliente(usuario, { ...(await datosParaVincular(usuario)), dni: dniLimpio });
+      const actualizado = await persistirPerfilLocal(usuario, { dni: dniLimpio }).catch(() => null);
+      if (actual === consulta.current) {
+        if (actualizado) setPerfil(actualizado);
+        await listo(datos, () => actual === consulta.current);
+      }
       return datos;
     },
     [usuario, listo]
@@ -139,14 +195,58 @@ export function CuentaClienteProvider({ children }) {
     async ({ telefono, dni }) => {
       const actual = ++consulta.current;
       const extras = {};
-      if (limpiar(telefono)) extras.telefono = `+54 ${limpiar(telefono)}`;
+      const telefonoFormateado = formatearTelefonoGuardado(telefono);
+      if (telefonoFormateado) extras.telefono = telefonoFormateado;
       if (limpiar(dni)) extras.dni = limpiar(dni);
       const datos = await vincularCliente(usuario, { ...(await datosParaVincular(usuario)), ...extras });
-      await guardarEnPerfil(usuario, extras);
-      if (actual === consulta.current) listo(datos);
+      const actualizado = await persistirPerfilLocal(usuario, extras).catch(() => null);
+      if (actual === consulta.current) {
+        if (actualizado) setPerfil(actualizado);
+        await listo(datos, () => actual === consulta.current);
+      }
       return datos;
     },
     [usuario, listo]
+  );
+
+  const guardarPerfil = useCallback(
+    async (nuevo) => {
+      const cambios = {
+        nombre: limpiar(nuevo.nombre),
+        apellido: limpiar(nuevo.apellido),
+        telefono: formatearTelefonoGuardado(nuevo.telefono),
+        fechaNacimiento: aIso(nuevo.fechaNacimiento),
+        aceptaPromociones: nuevo.aceptaPromociones === true,
+      };
+
+      if (cuenta) {
+        const actual = ++consulta.current;
+        const datos = await actualizarPerfilCliente(usuario, {
+          nombre: cambios.nombre,
+          apellido: cambios.apellido,
+          telefono: cambios.telefono,
+          fecha_nacimiento: cambios.fechaNacimiento,
+          acepta_promociones: cambios.aceptaPromociones,
+        });
+        const guardado = await persistirPerfilLocal(usuario, cambios);
+        if (actual === consulta.current) {
+          setPerfil(guardado);
+          await listo(datos, () => actual === consulta.current);
+        }
+        return guardado;
+      }
+
+      let guardado;
+      try {
+        guardado = await persistirPerfilLocal(usuario, cambios);
+      } catch (almacenamientoError) {
+        throw { errorAlmacenamiento: true };
+      }
+      setPerfil(guardado);
+      cargar();
+      return guardado;
+    },
+    [cuenta, usuario, listo, cargar]
   );
 
   const estadoVisible = esCliente && estado === 'inactivo' ? 'cargando' : estado;
@@ -154,6 +254,7 @@ export function CuentaClienteProvider({ children }) {
   const valor = useMemo(
     () => ({
       cuenta,
+      perfil,
       estado: estadoVisible,
       cargando: estadoVisible === 'cargando',
       error,
@@ -162,8 +263,9 @@ export function CuentaClienteProvider({ children }) {
       actualizar: cargar,
       buscarConDni,
       completarFicha,
+      guardarPerfil,
     }),
-    [cuenta, estadoVisible, error, codigo, faltan, cargar, buscarConDni, completarFicha]
+    [cuenta, perfil, estadoVisible, error, codigo, faltan, cargar, buscarConDni, completarFicha, guardarPerfil]
   );
 
   return <CuentaClienteContext.Provider value={valor}>{children}</CuentaClienteContext.Provider>;

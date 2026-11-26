@@ -17,16 +17,13 @@ Los perfiles son los de Django: **Administrador** (el titular es el administrado
 En el `.env` de la app se agrega la dirección base de la API:
 
 ```dotenv
-EXPO_PUBLIC_API_URL=http://192.168.0.10:8000/api/movil
+EXPO_PUBLIC_API_URL=https://tu-tunel.trycloudflare.com/api/movil
 ```
 
-- Mientras desarrollan, va la **IP de la PC o del NAS en la red**, nunca `localhost` (desde el celular, `localhost` es el propio celular).
+- Con **Cloudflare Tunnel** (`cloudflared`), el servidor Django del local queda publicado con HTTPS válido sin requerir IP pública ni abrir puertos, funcionando desde cualquier red móvil (4G/5G) o Wi-Fi. Recordar configurar en `settings.py` de Django `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')` además de incluir el dominio del túnel en `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS`.
+- Para desarrollo local directo en Expo Go sobre la misma red Wi-Fi, también se acepta `http://192.168.x.x:8000/api/movil` (nunca `localhost`).
 - Después de cambiar el `.env`, reiniciar Expo con `npx expo start -c`.
-- Si la variable está **vacía**, la app funciona en **modo demo**: todo lo de este contrato se simula en `src/api/demo/` con las mismas respuestas, y lo que se carga queda guardado solo en ese celular. Usuarios de prueba, todos con la contraseña `Cafeto2026` y con los permisos iniciales que Django les da a esos perfiles (`seguridad/migrations/0003_datos_iniciales.py`):
-  - `admin` (DNI 30123456): Administrador y titular.
-  - `encargado` (DNI 33456789): Encargado (autoriza ajustes, recibe mercadería, ve ventas y caja).
-  - `operador` (DNI 40111222): Operador (cuenta stock, carga mermas y producción, consulta productos).
-- Cuando la API exista, alcanza con completar la variable: las pantallas no cambian.
+- Si `EXPO_PUBLIC_API_URL` está vacía, la app informa que falta configurar la dirección del sistema Cafeto (`sinConfigurar: true`).
 
 ## Autenticación del equipo
 
@@ -91,9 +88,13 @@ Django lo verifica con `firebase-admin` y exige el correo verificado. Los endpoi
 - **Oferta**: la misma regla que `stock.servicios.en_oferta()`. Se usa `producto.rebaja_vigente()` (la rebaja del producto manda sobre la del rubro). Si el lote con stock que vence primero, y todavía no venció, está dentro de esos días, va `precio_oferta` = precio con la rebaja (redondeado) y `porcentaje_oferta`.
 - **Disponible**: lo que tiene stock propio (`REVENTA`, `PRODUCIDO`) está disponible si le queda stock que no esté vencido. Lo elaborado al momento y los combos, siempre.
 - **Marca**: si es la genérica «Sin marca», va `null`.
-- **Imagen**: el modelo `Producto` no tiene foto. Mientras no se agregue, va `null` y la app muestra el ícono. La app también acepta una clave de las fotos que trae incluidas (`espresso`, `cafe-con-leche`, `capuchino`, `cold-brew`, `limonada`, `tostado`, `tostadas-palta`, `medialunas`, `budin-limon`) o una URL `https://`.
+- **Imagen**: cuando el producto no tiene foto va `null` y la app muestra el ícono de su rubro/sección. Cuando tiene foto (cargada desde Django o automatizada vía n8n), puede venir una URL absoluta `https://...`, una ruta relativa `/media/productos/...` (la app antepone automáticamente el origen de `EXPO_PUBLIC_API_URL`) o una URL `http://` del mismo origen en desarrollo. Para evitar caché obsoleta cuando n8n sobreescribe una imagen conservando el nombre, Django debe incluir `?v=<timestamp>` en la URL o enviar el campo `imagen_actualizada`.
 
 ## Endpoints públicos (sin token)
+
+### `GET /salud/`
+
+Endpoint liviano sin autenticación que devuelve `200` con `{ "ok": true }`. La pantalla `SinConexion` de la app lo consulta con `AbortController` para detectar automáticamente cuándo vuelve a estar alcanzable el servidor Cafeto.
 
 ### `GET /catalogo/destacados/`
 
@@ -416,8 +417,9 @@ Los mismos bloques que el inicio de la web, cada uno según su permiso:
 
 | Pedido | Qué hace |
 |---|---|
-| `GET /clientes/yo/` | Devuelve la ficha del cliente vinculada a esa cuenta de Firebase. `404` **sin** `codigo` si todavía no hay ninguna: solo en ese caso la app llama a `vincular`. |
-| `POST /clientes/vincular/` | Con `{ "nombre", "apellido", "telefono", "dni", "fecha_nacimiento" }` (los de la app), vincula la ficha o la crea. Responde lo mismo que `GET /clientes/yo/`. El `dni` sirve para elegir entre fichas con el mismo correo y, en el alta, en lugar del teléfono. |
+| `GET /clientes/yo/` | Devuelve la ficha del cliente vinculada a esa cuenta de Firebase (incluyendo `nombre`, `apellido`, `telefono`, `fecha_nacimiento` y `acepta_promociones` para hidratar Perfil en cualquier dispositivo). `404` **sin** `codigo` si todavía no hay ninguna: solo en ese caso la app llama a `vincular`. |
+| `POST /clientes/vincular/` | Con `{ "nombre", "apellido", "telefono", "dni", "fecha_nacimiento", "acepta_promociones" }`, vincula la ficha o la crea. Responde lo mismo que `GET /clientes/yo/`. El `dni` sirve para elegir entre fichas con el mismo correo y, en el alta, en lugar del teléfono. |
+| `PATCH /clientes/yo/` | Con `{ "nombre", "apellido", "telefono", "fecha_nacimiento", "acepta_promociones" }`, actualiza los datos personales de la ficha vinculada cuando el cliente los edita en `Perfil` y devuelve la cuenta actualizada (`200`). Si el teléfono ya pertenece a otra ficha, responde `400` con `codigo: "TELEFONO_DE_OTRO_CLIENTE"`. |
 
 Cómo se encuentra la ficha:
 
@@ -452,8 +454,6 @@ Cómo se encuentra la ficha:
 | `503` `CLIENTES_SIN_CONFIGURAR` | El servidor no tiene la credencial de Firebase. | Que el local está terminando de conectar los puntos, y que en la caja lo buscan por DNI o teléfono. |
 
 Para que el `503` no aparezca, el servidor necesita la credencial de servicio de Firebase (ver «Puesta en marcha de los clientes»).
-
-Mientras la app está en modo demo, genera un código con el mismo formato (`CAF-` y 10 caracteres) y puntos de ejemplo, y lo avisa en pantalla.
 
 ### Puesta en marcha de los clientes
 

@@ -8,7 +8,7 @@ import { useTema } from '../src/tema/TemaContext';
 import { useSesion } from '../src/sesion/SesionContext';
 import { mensajeDeError } from '../src/api/cliente';
 import { SECCIONES, listarBeneficios, listarDestacados, listarProductos } from '../src/api/catalogo';
-import { coloresCategoria } from '../src/datos/ejemplo';
+import { coloresCategoria } from '../src/datos/categorias';
 import { useCuentaCliente } from '../src/cliente/CuentaClienteContext';
 import { formatearNumero } from '../src/utilidades/formato';
 import { primerNombre } from '../src/utilidades/texto';
@@ -152,7 +152,7 @@ export default function Inicio() {
 
   const verSeccion = (clave) => navigation.navigate('Productos', { seccion: clave, pedido: Date.now() });
   const buscar = () => navigation.navigate('Productos', { enfocar: true, pedido: Date.now() });
-  const abrirAyuda = () => navigation.navigate('Ayuda', { tipo: rol === 'equipo' ? 'equipo' : 'cliente' });
+  const abrirAyuda = () => navigation.navigate('Ayuda');
 
   const orden = ordenDeCategorias(cuenta?.categorias?.length ? cuenta.categorias : categorias);
   const puntos = resumirPuntos(cuenta, orden);

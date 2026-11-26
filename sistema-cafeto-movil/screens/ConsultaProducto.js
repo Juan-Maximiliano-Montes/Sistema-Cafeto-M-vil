@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import { useSesion } from '../src/sesion/SesionContext';
-import { MODO_DEMO, mensajeDeError } from '../src/api/cliente';
+import { mensajeDeError } from '../src/api/cliente';
 import { unirSinRepetidos } from '../src/api/formas';
 import { consultarProductos } from '../src/api/stock';
 import { A_REVISAR, TIPOS_ALERTA } from '../src/datos/alertas';
@@ -14,7 +14,6 @@ import { stockARevisar, usadoDeMas } from '../src/datos/ajustes';
 import { describirVencimiento, formatearCantidad, formatearFechaLarga, formatearPrecio } from '../src/utilidades/formato';
 import { limpiar } from '../src/utilidades/texto';
 import BarraVolver from '../src/componentes/BarraVolver';
-import CuadroAyuda from '../src/componentes/CuadroAyuda';
 import EscanerCodigo from '../src/componentes/EscanerCodigo';
 import EstadoVacio from '../src/componentes/EstadoVacio';
 import ImagenProducto from '../src/componentes/ImagenProducto';
@@ -309,16 +308,6 @@ export default function ConsultaProducto({ navigation, route }) {
         <BarraVolver texto="Volver" />
         <Text style={estilos.titulo}>Consultar producto</Text>
         <Text style={estilos.subtitulo}>Precio, stock y vencimientos en el momento.</Text>
-        {MODO_DEMO && (
-          <CuadroAyuda
-            id="consulta-demo"
-            cerrable
-            icono="flask-outline"
-            tipo="consejo"
-            titulo="Probalo en la demo"
-            texto="Buscá «gaseosa» o «queso», o escribí el código 7790895000782 y tocá buscar en el teclado."
-          />
-        )}
         <View style={estilos.filaBuscador}>
           <View style={estilos.buscador}>
             <Ionicons name="search-outline" size={20} color={colores.textoSecundario} />

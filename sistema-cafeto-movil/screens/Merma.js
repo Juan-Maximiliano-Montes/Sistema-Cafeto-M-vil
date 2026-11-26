@@ -11,6 +11,7 @@ import { esOperacionRepetida, mensajeDeError, nuevaClaveOperacion } from '../src
 import { registrarMerma } from '../src/api/ajustes';
 import { listarLotes } from '../src/api/stock';
 import { MOTIVOS_AJUSTE, conUnidad, textoDeStock } from '../src/datos/ajustes';
+import { hapticExito } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
 import { leerCantidad, validarCantidad, validarTextoCatalogo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
@@ -181,6 +182,7 @@ export default function Merma({ navigation, route }) {
         clave.current
       );
       clave.current = nuevaClaveOperacion();
+      hapticExito();
       navigation.goBack();
       avisar('exito', 'Merma cargada', `La merma N° ${resultado.id} quedó esperando que la apruebe quien autoriza los ajustes.`);
     } catch (problema) {
@@ -235,6 +237,18 @@ export default function Merma({ navigation, route }) {
               setDetalle(texto);
               setErrorDetalle('');
             }}
+            alSalir={() => {
+              if (limpiar(detalle) || motivo === 'OTRO') {
+                setErrorDetalle(
+                  validarTextoCatalogo(detalle, {
+                    etiqueta: 'El detalle',
+                    minimo: 3,
+                    maximo: 120,
+                    obligatorio: motivo === 'OTRO',
+                  })
+                );
+              }
+            }}
             error={errorDetalle}
             maxLength={130}
             editable={!enviando}
@@ -285,6 +299,16 @@ export default function Merma({ navigation, route }) {
                 placeholder={renglon.producto.cantidadEntera ? 'Ej.: 2' : 'Ej.: 0,5'}
                 valor={renglon.cantidad}
                 alCambiar={(texto) => actualizar(renglon.clave, { cantidad: texto, error: '' })}
+                alSalir={() => {
+                  if (limpiar(renglon.cantidad)) {
+                    actualizar(renglon.clave, {
+                      error: validarCantidad(renglon.cantidad, {
+                        entera: renglon.producto.cantidadEntera,
+                        existencia: existencia(renglon),
+                      }),
+                    });
+                  }
+                }}
                 error={renglon.error}
                 keyboardType="decimal-pad"
                 maxLength={12}

@@ -1,12 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  AppState,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { deleteUser, sendEmailVerification, signOut } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import { useTema } from '../src/tema/TemaContext';
@@ -23,43 +32,76 @@ function formatearReloj(segundos) {
 }
 
 export default function Verificacion() {
-  const [fuentesCargadas] = useFonts({
-    Caveat_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-  });
-
   const [verificado, setVerificado] = useState(false);
   const [segundos, setSegundos] = useState(ESPERA_REENVIO);
   const [entrando, setEntrando] = useState(false);
   const yaAbrioCorreo = useRef(false);
+  const montado = useRef(true);
 
   const navigation = useNavigation();
   const { colores, isotipo, cambiarTema } = useTema();
   const { avisar } = useAviso();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
-  const correo = auth.currentUser?.email ?? '';
+  const correo = auth?.currentUser?.email ?? '';
 
   useEffect(() => {
-    if (segundos === 0) return;
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (segundos === 0) return undefined;
     const temporizador = setTimeout(() => setSegundos(segundos - 1), 1000);
     return () => clearTimeout(temporizador);
   }, [segundos]);
 
   useEffect(() => {
-    if (verificado) return;
-    const consulta = setInterval(() => {
-      const actual = auth.currentUser;
+    if (verificado) return undefined;
+    let cancelado = false;
+    let temporizador = null;
+    let consultando = false;
+
+    const programar = () => {
+      if (cancelado || AppState.currentState !== 'active') return;
+      temporizador = setTimeout(revisar, INTERVALO_CONSULTA);
+    };
+
+    const revisar = async () => {
+      if (cancelado || consultando) return;
+      const actual = auth?.currentUser;
       if (!actual) return;
-      actual
-        .reload()
-        .then(() => {
-          if (auth.currentUser?.emailVerified) setVerificado(true);
-        })
-        .catch(() => null);
-    }, INTERVALO_CONSULTA);
-    return () => clearInterval(consulta);
+      consultando = true;
+      try {
+        await actual.reload();
+        if (!cancelado && auth?.currentUser?.emailVerified) {
+          setVerificado(true);
+          return;
+        }
+      } catch (error) {
+        // Ignorar fallos de red transitorios durante el sondeo
+      } finally {
+        consultando = false;
+      }
+      programar();
+    };
+
+    programar();
+
+    const suscripcion = AppState.addEventListener('change', (siguiente) => {
+      if (temporizador) {
+        clearTimeout(temporizador);
+        temporizador = null;
+      }
+      if (siguiente === 'active') revisar();
+    });
+
+    return () => {
+      cancelado = true;
+      if (temporizador) clearTimeout(temporizador);
+      suscripcion.remove();
+    };
   }, [verificado]);
 
   const abrirCorreo = async () => {
@@ -119,16 +161,20 @@ export default function Verificacion() {
       }
     }
 
-    avisar('advertencia', 'No pudimos abrir tu correo', 'Abrilo vos y buscá el mensaje de Cafeto. Si no está, mirá en spam.');
+    if (montado.current) {
+      avisar('advertencia', 'No pudimos abrir tu correo', 'Abrilo vos y buscá el mensaje de Cafeto. Si no está, mirá en spam.');
+    }
   };
 
   const reenviarEnlace = async () => {
-    if (!auth.currentUser) return;
+    if (!auth?.currentUser) return;
     try {
       await sendEmailVerification(auth.currentUser);
+      if (!montado.current) return;
       setSegundos(ESPERA_REENVIO);
       avisar('exito', 'Enlace enviado', `Te mandamos un nuevo enlace a ${correo}.`);
     } catch (error) {
+      if (!montado.current) return;
       if (error.code === 'auth/too-many-requests') {
         avisar('advertencia', 'Esperá un momento', 'Se pidieron varios enlaces seguidos desde esta red. Probá de nuevo en unos minutos.');
       } else if (error.code === 'auth/quota-exceeded') {
@@ -145,7 +191,7 @@ export default function Verificacion() {
     try {
       await deleteUser(auth.currentUser);
     } catch (error) {
-      await signOut(auth);
+      await signOut(auth).catch(() => null);
       avisar(
         'error',
         'No pudimos borrar el registro',
@@ -167,24 +213,18 @@ export default function Verificacion() {
   };
 
   const empezar = async () => {
-    if (!auth.currentUser) return;
+    if (!auth?.currentUser) return;
     setEntrando(true);
     marcarEntrada();
     try {
       await auth.currentUser.getIdToken(true);
     } catch (error) {
-      setEntrando(false);
-      avisar('error', 'No pudimos entrar', 'Revisá tu conexión y tocá «Entrar a mi cuenta» de nuevo.');
+      if (montado.current) {
+        setEntrando(false);
+        avisar('error', 'No pudimos entrar', 'Revisá tu conexión y tocá «Entrar a mi cuenta» de nuevo.');
+      }
     }
   };
-
-  if (!fuentesCargadas) {
-    return (
-      <View style={[estilos.pantalla, estilos.centrado]}>
-        <ActivityIndicator size="large" color={colores.marca} />
-      </View>
-    );
-  }
 
   return (
     <SafeAreaView style={estilos.pantalla}>
@@ -291,11 +331,7 @@ export default function Verificacion() {
 
             <View style={estilos.espaciador} />
             <Text style={estilos.pie}>Apenas toques el enlace, esta pantalla se actualiza sola.</Text>
-            <Pressable
-              style={estilos.filaAyuda}
-              onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
-              hitSlop={8}
-            >
+            <Pressable style={estilos.filaAyuda} onPress={() => navigation.navigate('Ayuda')} hitSlop={8}>
               <Text style={[estilos.textoChico, estilos.enlace]}>¿No te llega? Mirá cómo resolverlo</Text>
             </Pressable>
           </>
@@ -310,10 +346,6 @@ function crearEstilos(c) {
     pantalla: {
       flex: 1,
       backgroundColor: c.fondo,
-    },
-    centrado: {
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     contenido: {
       flexGrow: 1,
@@ -445,13 +477,22 @@ function crearEstilos(c) {
     separado: { marginTop: 22 },
     filaCargando: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     tarjetaPromo: {
-      flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 22,
-      backgroundColor: c.marcaSuave, borderWidth: 1, borderColor: c.bordeAdvertencia,
-      borderRadius: 16, padding: 16,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginTop: 22,
+      backgroundColor: c.marcaSuave,
+      borderWidth: 1,
+      borderColor: c.bordeAdvertencia,
+      borderRadius: 16,
+      padding: 16,
     },
     avisoSpam: {
-      fontFamily: 'Inter_400Regular', fontSize: 13, color: c.textoTenue,
-      textAlign: 'center', marginTop: 10,
+      fontFamily: 'Inter_400Regular',
+      fontSize: 13,
+      color: c.textoTenue,
+      textAlign: 'center',
+      marginTop: 10,
     },
     botonPrincipal: {
       height: 54,

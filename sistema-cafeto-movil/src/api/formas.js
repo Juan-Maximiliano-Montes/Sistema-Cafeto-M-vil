@@ -54,6 +54,15 @@ export function aEntidad(crudo) {
   return { ...referencia, descripcion: texto(crudo.descripcion), activo: crudo.activo !== false };
 }
 
+function normalizarImagen(crudo) {
+  const ruta = texto(crudo?.imagen);
+  if (!ruta) return null;
+  const version = texto(crudo?.imagen_actualizada ?? crudo?.updated_at);
+  if (!version || /[?&]v=/i.test(ruta)) return ruta;
+  const separador = ruta.includes('?') ? '&' : '?';
+  return `${ruta}${separador}v=${encodeURIComponent(version)}`;
+}
+
 export function aProducto(crudo) {
   if (!crudo || typeof crudo !== 'object') return null;
   const id = identificador(crudo.id);
@@ -82,7 +91,7 @@ export function aProducto(crudo) {
     tipo: texto(crudo.tipo),
     rubro: aReferencia(crudo.rubro),
     marca: aReferencia(crudo.marca),
-    imagen: texto(crudo.imagen) || null,
+    imagen: normalizarImagen(crudo),
     icono: texto(crudo.icono) || null,
     disponible: crudo.disponible !== false,
     motivo: crudo.motivo === 'COMBO' || crudo.motivo === 'OFERTA' ? crudo.motivo : null,
@@ -317,6 +326,9 @@ export function aCuentaCliente(crudo) {
     const convertido = numero(valor);
     return convertido !== null && convertido > 0 ? Math.round(convertido) : 0;
   };
+  const tieneTelefono = 'telefono' in crudo || 'telefono_cliente' in crudo;
+  const tieneFechaNacimiento = 'fecha_nacimiento' in crudo || 'fechaNacimiento' in crudo;
+  const promocionesCrudo = crudo.acepta_promociones ?? crudo.aceptaPromociones;
   return {
     qr,
     categoria: texto(crudo.categoria) || 'Bronze',
@@ -334,7 +346,11 @@ export function aCuentaCliente(crudo) {
         return { id, concepto, fecha: texto(item.fecha), puntos: Math.round(puntos) };
       })
       .filter(Boolean),
-    ejemplo: crudo.ejemplo === true,
+    nombre: texto(crudo.nombre ?? crudo.nombre_cliente) || undefined,
+    apellido: texto(crudo.apellido ?? crudo.apellido_cliente) || undefined,
+    telefono: tieneTelefono ? texto(crudo.telefono ?? crudo.telefono_cliente) || null : undefined,
+    fechaNacimiento: tieneFechaNacimiento ? texto(crudo.fecha_nacimiento ?? crudo.fechaNacimiento) || null : undefined,
+    aceptaPromociones: typeof promocionesCrudo === 'boolean' ? promocionesCrudo : undefined,
   };
 }
 

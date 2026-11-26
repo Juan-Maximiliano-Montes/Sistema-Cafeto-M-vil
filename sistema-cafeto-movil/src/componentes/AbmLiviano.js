@@ -20,8 +20,9 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useTema } from '../tema/TemaContext';
 import { useAviso } from '../aviso/AvisoContext';
 import { useSesion } from '../sesion/SesionContext';
-import { MODO_DEMO, erroresPorCampo, mensajeDeError } from '../api/cliente';
+import { erroresPorCampo, mensajeDeError } from '../api/cliente';
 import { unirSinRepetidos } from '../api/formas';
+import { hapticExito } from '../utilidades/haptics';
 import { limpiar } from '../utilidades/texto';
 import { validarTextoCatalogo } from '../utilidades/validaciones';
 import CampoTexto from './CampoTexto';
@@ -284,6 +285,7 @@ export default function AbmLiviano({ configuracion }) {
       if (!montado.current) return;
       setGuardando(false);
       setFormulario(null);
+      hapticExito();
       cargar(1, busqueda);
       avisarLuego(
         'exito',
@@ -470,12 +472,6 @@ export default function AbmLiviano({ configuracion }) {
             ? `Tocá ${p.un} ${singular} para corregirl${p.final}.`
             : `Podés ver ${p.los} ${p.plural}, pero no modificarl${p.final}s.`}
         </Text>
-        {MODO_DEMO && (
-          <View style={estilos.demo}>
-            <Ionicons name="flask-outline" size={16} color={colores.marca} />
-            <Text style={estilos.textoDemo}>Modo demo: los cambios quedan guardados solo en este celular.</Text>
-          </View>
-        )}
         {ayuda ? <CuadroAyuda id={`abm-${clave}`} cerrable titulo="Antes de empezar" texto={ayuda} /> : null}
         <View style={estilos.buscador}>
           <Ionicons name="search-outline" size={20} color={colores.textoSecundario} />
@@ -637,18 +633,6 @@ function crearEstilos(c) {
     textoNuevo: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: c.textoSobreMarca },
     titulo: { fontFamily: 'Caveat_700Bold', fontSize: 36, color: c.titulo, marginBottom: -8 },
     subtitulo: { fontFamily: 'Inter_400Regular', fontSize: 14, color: c.textoSecundario },
-    demo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.bordeAdvertencia,
-      backgroundColor: c.fondoAdvertencia,
-    },
-    textoDemo: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, color: c.textoSecundario },
     buscador: {
       flexDirection: 'row',
       alignItems: 'center',

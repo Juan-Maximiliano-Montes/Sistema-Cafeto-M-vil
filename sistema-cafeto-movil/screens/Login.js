@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -8,68 +8,80 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Feather, FontAwesome, Ionicons } from '@expo/vector-icons';
-import { useFonts, Caveat_700Bold } from '@expo-google-fonts/caveat';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import SinConexion from './SinConexion';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
-import { filtrarCorreo, validarCorreo } from '../src/utilidades/validaciones';
+import { useSesion } from '../src/sesion/SesionContext';
+import { mensajeDeError } from '../src/api/cliente';
+import {
+  filtrarCorreo,
+  normalizarUsuarioEquipo,
+  validarCorreo,
+  validarUsuarioEquipo,
+} from '../src/utilidades/validaciones';
+import CampoTexto from '../src/componentes/CampoTexto';
+import ModalLegal from '../src/componentes/ModalLegal';
 
 const CLAVE_CORREO_RECORDADO = 'cafeto:correoRecordado';
 
-export default function Login({ navigation, route }) {
-  const [fuentesCargadas] = useFonts({
-    Caveat_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-  });
+function validarIdentificador(valor, { obligatorio = false } = {}) {
+  const limpio = valor.trim();
+  if (!limpio) return obligatorio ? 'Ingresá tu correo, usuario o DNI.' : '';
+  if (limpio.includes('@')) return validarCorreo(limpio, { obligatorio });
+  return validarUsuarioEquipo(limpio);
+}
 
-  const [correo, setCorreo] = useState('');
+export default function Login({ navigation, route }) {
+  const [identificador, setIdentificador] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [mostrarContrasena, setMostrarContrasena] = useState(false);
   const [recordarme, setRecordarme] = useState(false);
-  const [campoActivo, setCampoActivo] = useState(null);
-  const [errorCorreo, setErrorCorreo] = useState('');
+  const [errorIdentificador, setErrorIdentificador] = useState('');
   const [errorContrasena, setErrorContrasena] = useState('');
   const [cargando, setCargando] = useState(false);
   const [sinConexion, setSinConexion] = useState(false);
+  const [legal, setLegal] = useState(null);
+  const montado = useRef(true);
 
   const { colores, logo, cambiarTema } = useTema();
   const { avisar } = useAviso();
+  const { entrarComoEquipo } = useSesion();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
-  const formularioCompleto = correo.trim() !== '' && contrasena !== '';
+  const formularioCompleto = identificador.trim() !== '' && contrasena !== '';
+  const esModoCorreo = identificador.includes('@');
 
   useEffect(() => {
+    montado.current = true;
     AsyncStorage.getItem(CLAVE_CORREO_RECORDADO)
-      .then((correoGuardado) => {
-        if (correoGuardado) {
-          setCorreo((actual) => actual || correoGuardado);
+      .then((guardado) => {
+        if (montado.current && guardado) {
+          setIdentificador((actual) => actual || guardado);
           setRecordarme(true);
         }
       })
       .catch(() => null);
+    return () => {
+      montado.current = false;
+    };
   }, []);
 
   useEffect(() => {
     if (route.params?.correo) {
-      setCorreo(route.params.correo);
-      setErrorCorreo('');
+      setIdentificador(route.params.correo);
+      setErrorIdentificador('');
     }
   }, [route.params?.correo]);
 
-  const cambiarCorreo = (texto) => {
-    setCorreo(filtrarCorreo(texto));
-    setErrorCorreo('');
+  const cambiarIdentificador = (texto) => {
+    setIdentificador(filtrarCorreo(texto));
+    setErrorIdentificador('');
   };
 
   const cambiarContrasena = (texto) => {
@@ -77,17 +89,16 @@ export default function Login({ navigation, route }) {
     setErrorContrasena('');
   };
 
-  const salirDelCorreo = () => {
-    setCampoActivo(null);
-    setErrorCorreo(validarCorreo(correo));
+  const salirDeIdentificador = () => {
+    setErrorIdentificador(validarIdentificador(identificador));
   };
 
   const validarFormulario = () => {
     let esValido = true;
 
-    const problemaCorreo = validarCorreo(correo, { obligatorio: true });
-    if (problemaCorreo) {
-      setErrorCorreo(problemaCorreo);
+    const problemaIdentificador = validarIdentificador(identificador, { obligatorio: true });
+    if (problemaIdentificador) {
+      setErrorIdentificador(problemaIdentificador);
       esValido = false;
     }
 
@@ -101,22 +112,20 @@ export default function Login({ navigation, route }) {
 
   const guardarPreferenciaRecordarme = async () => {
     const guardado = recordarme
-      ? AsyncStorage.setItem(CLAVE_CORREO_RECORDADO, correo.trim())
+      ? AsyncStorage.setItem(CLAVE_CORREO_RECORDADO, identificador.trim())
       : AsyncStorage.removeItem(CLAVE_CORREO_RECORDADO);
     await guardado.catch(() => null);
   };
 
   const mostrarErrorDeFirebase = (error) => {
-    switch (error.code) {
+    switch (error?.code) {
       case 'auth/invalid-email':
-        setErrorCorreo('El formato del correo no es válido.');
+        setErrorIdentificador('El formato del correo no es válido.');
         break;
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
-        setErrorContrasena('El correo o la contraseña no coinciden. Revisalos y probá de nuevo.');
-        break;
       case 'auth/user-not-found':
-        setErrorContrasena('No encontramos una cuenta con ese correo. Revisalo o creá tu cuenta.');
+        setErrorContrasena('Los datos ingresados no coinciden. Revisalos y probá de nuevo.');
         break;
       case 'auth/too-many-requests':
         setErrorContrasena('Demasiados intentos. Esperá unos minutos y probá de nuevo.');
@@ -130,11 +139,12 @@ export default function Login({ navigation, route }) {
         avisar('advertencia', 'No disponible', 'Este método de acceso no está habilitado en Firebase.');
         break;
       default:
-        avisar('error', 'Error', `No pudimos iniciar sesión.\n\nCódigo: ${error.code ?? 'desconocido'}`);
+        avisar('error', 'Error', `No pudimos iniciar sesión.\n\nCódigo: ${error?.code ?? 'desconocido'}`);
     }
   };
 
   const esFaltaDeConexion = (error) => {
+    if (error?.sinConexion) return true;
     const codigo = error?.code ?? '';
     const mensaje = error?.message ?? '';
     return (
@@ -146,49 +156,54 @@ export default function Login({ navigation, route }) {
   };
 
   const iniciarSesion = async () => {
-    if (!validarFormulario()) return;
+    if (cargando || !validarFormulario()) return;
 
     setCargando(true);
     try {
       await guardarPreferenciaRecordarme();
-      await signInWithEmailAndPassword(auth, correo.trim(), contrasena);
+      if (esModoCorreo) {
+        await signInWithEmailAndPassword(auth, identificador.trim(), contrasena);
+      } else {
+        await entrarComoEquipo(normalizarUsuarioEquipo(identificador), contrasena);
+        avisar('exito', 'Listo', 'Entraste en modo equipo. Tus tareas están en la pestaña Gestión.');
+      }
     } catch (error) {
+      if (!montado.current) return;
       if (esFaltaDeConexion(error)) {
         setSinConexion(true);
-      } else {
+      } else if (esModoCorreo) {
         mostrarErrorDeFirebase(error);
+      } else if (error?.estado === 400 || error?.estado === 401) {
+        setErrorContrasena('Los datos ingresados no coinciden. Revisalos y probá de nuevo.');
+      } else {
+        avisar('error', 'No pudimos iniciar sesión', mensajeDeError(error));
       }
     } finally {
-      setCargando(false);
+      if (montado.current) setCargando(false);
     }
   };
 
   const recuperarContrasena = async () => {
-    const problemaCorreo = validarCorreo(correo);
-    if (!correo.trim() || problemaCorreo) {
-      setErrorCorreo(problemaCorreo || 'Escribí tu correo y te mandamos un enlace para elegir una nueva.');
+    const limpio = identificador.trim();
+    if (!limpio || !limpio.includes('@')) {
+      setErrorIdentificador('Escribí el correo electrónico de tu cuenta para enviarte el enlace.');
+      return;
+    }
+    const problemaCorreo = validarCorreo(limpio, { obligatorio: true });
+    if (problemaCorreo) {
+      setErrorIdentificador(problemaCorreo);
       return;
     }
 
     try {
-      await sendPasswordResetEmail(auth, correo.trim());
-      avisar('exito', 'Revisá tu correo', `Te mandamos un enlace a ${correo.trim()} para que elijas una contraseña nueva.`);
+      await sendPasswordResetEmail(auth, limpio);
+      if (montado.current) {
+        avisar('exito', 'Revisá tu correo', `Te mandamos un enlace a ${limpio} para que elijas una contraseña nueva.`);
+      }
     } catch (error) {
-      mostrarErrorDeFirebase(error);
+      if (montado.current) mostrarErrorDeFirebase(error);
     }
   };
-
-  const avisarProximamente = (proveedor) => {
-    avisar('advertencia', 'Próximamente', `El ingreso con ${proveedor} todavía no está disponible.`);
-  };
-
-  if (!fuentesCargadas) {
-    return (
-      <View style={[estilos.pantalla, estilos.centrado]}>
-        <ActivityIndicator size="large" color={colores.marca} />
-      </View>
-    );
-  }
 
   if (sinConexion) {
     return <SinConexion alReintentar={() => setSinConexion(false)} />;
@@ -197,10 +212,7 @@ export default function Login({ navigation, route }) {
   return (
     <SafeAreaView style={estilos.pantalla}>
       <StatusBar style={colores.barraEstado} />
-      <KeyboardAvoidingView
-        style={estilos.pantalla}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={estilos.pantalla} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={estilos.contenido}
           keyboardShouldPersistTaps="handled"
@@ -224,88 +236,47 @@ export default function Login({ navigation, route }) {
           <Text style={estilos.titulo}>Hola de nuevo</Text>
           <Text style={estilos.subtitulo}>Qué bueno verte.</Text>
 
-          <Text style={estilos.etiqueta}>Correo electrónico</Text>
-          <View
-            style={[
-              estilos.campo,
-              campoActivo === 'correo' && estilos.campoActivo,
-              errorCorreo !== '' && estilos.campoConError,
-            ]}
-          >
-            <Feather name="mail" size={20} color={colores.textoSecundario} />
-            <TextInput
-              style={estilos.entrada}
-              placeholder="ejemplo@correo.com"
-              placeholderTextColor={colores.textoTenue}
-              value={correo}
-              onChangeText={cambiarCorreo}
-              onFocus={() => setCampoActivo('correo')}
-              onBlur={salirDelCorreo}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              returnKeyType="next"
-              editable={!cargando}
-            />
-          </View>
-          {errorCorreo !== '' && (
-            <View style={estilos.filaError}>
-              <Feather name="alert-circle" size={14} color={colores.peligro} />
-              <Text style={estilos.textoError}>{errorCorreo}</Text>
-            </View>
-          )}
-          {campoActivo === 'correo' && errorCorreo === '' && (
-            <Text style={estilos.ayuda}>Ingresá el correo con el que te registraste.</Text>
-          )}
+          <CampoTexto
+            etiqueta="Correo, usuario o DNI"
+            icono={esModoCorreo ? 'mail' : 'user'}
+            placeholder="ejemplo@correo.com o tu usuario"
+            valor={identificador}
+            alCambiar={cambiarIdentificador}
+            alSalir={salirDeIdentificador}
+            error={errorIdentificador}
+            ayudaAlEnfocar="Ingresá el correo de tu cuenta, tu usuario o tu DNI."
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="username"
+            returnKeyType="next"
+            editable={!cargando}
+            maxLength={254}
+          />
 
-          <Text style={estilos.etiqueta}>Contraseña</Text>
-          <View
-            style={[
-              estilos.campo,
-              campoActivo === 'contrasena' && estilos.campoActivo,
-              errorContrasena !== '' && estilos.campoConError,
-            ]}
-          >
-            <Feather name="lock" size={20} color={colores.textoSecundario} />
-            <TextInput
-              style={estilos.entrada}
-              placeholder="Tu contraseña"
-              placeholderTextColor={colores.textoTenue}
-              value={contrasena}
-              onChangeText={cambiarContrasena}
-              onFocus={() => setCampoActivo('contrasena')}
-              onBlur={() => setCampoActivo(null)}
-              secureTextEntry={!mostrarContrasena}
-              autoCapitalize="none"
-              autoComplete="password"
-              returnKeyType="go"
-              onSubmitEditing={iniciarSesion}
-              editable={!cargando}
-            />
-            <Pressable onPress={() => setMostrarContrasena(!mostrarContrasena)} hitSlop={10}>
-              <Feather
-                name={mostrarContrasena ? 'eye-off' : 'eye'}
-                size={20}
-                color={colores.textoSecundario}
-              />
-            </Pressable>
-          </View>
-          {errorContrasena !== '' && (
-            <View style={estilos.filaError}>
-              <Feather name="alert-circle" size={14} color={colores.peligro} />
-              <Text style={estilos.textoError}>{errorContrasena}</Text>
-            </View>
-          )}
+          <CampoTexto
+            etiqueta="Contraseña"
+            icono="lock"
+            placeholder="Tu contraseña"
+            valor={contrasena}
+            alCambiar={cambiarContrasena}
+            error={errorContrasena}
+            seguro
+            autoCapitalize="none"
+            autoComplete="password"
+            returnKeyType="go"
+            onSubmitEditing={iniciarSesion}
+            editable={!cargando}
+          />
 
           <View style={estilos.filaOpciones}>
-            <Pressable style={estilos.recordarme} onPress={() => setRecordarme(!recordarme)}>
+            <Pressable style={estilos.recordarme} onPress={() => setRecordarme(!recordarme)} disabled={cargando}>
               <View style={[estilos.casilla, recordarme && estilos.casillaMarcada]}>
                 {recordarme && <Feather name="check" size={16} color={colores.textoSobreMarca} />}
               </View>
               <Text style={estilos.textoRecordarme}>Recordarme</Text>
             </Pressable>
-            <Pressable onPress={recuperarContrasena}>
+            <Pressable onPress={recuperarContrasena} disabled={cargando}>
               <Text style={estilos.enlace}>¿Olvidaste tu contraseña?</Text>
             </Pressable>
           </View>
@@ -318,6 +289,7 @@ export default function Login({ navigation, route }) {
             ]}
             onPress={iniciarSesion}
             disabled={cargando || !formularioCompleto}
+            accessibilityRole="button"
           >
             {cargando ? (
               <View style={estilos.filaCargando}>
@@ -325,54 +297,26 @@ export default function Login({ navigation, route }) {
                 <Text style={estilos.textoBotonPrincipal}>Iniciando sesión...</Text>
               </View>
             ) : (
-              <Text
-                style={[estilos.textoBotonPrincipal, !formularioCompleto && estilos.textoBotonDeshabilitado]}
-              >
+              <Text style={[estilos.textoBotonPrincipal, !formularioCompleto && estilos.textoBotonDeshabilitado]}>
                 Iniciar sesión
               </Text>
             )}
           </Pressable>
 
-          {cargando ? (
-            <Text style={estilos.textoVerificando}>Un momento, estamos verificando tus datos.</Text>
-          ) : (
-            <>
-              <View style={estilos.separador}>
-                <View style={estilos.linea} />
-                <Text style={estilos.textoSeparador}>o</Text>
-                <View style={estilos.linea} />
-              </View>
-
-              <Pressable
-                style={({ pressed }) => [estilos.botonSocial, estilos.botonGoogle, pressed && estilos.presionado]}
-                onPress={() => avisarProximamente('Google')}
-              >
-                <FontAwesome name="google" size={20} color="#4285F4" />
-                <Text style={[estilos.textoBotonSocial, estilos.textoGoogle]}>Continuar con Google</Text>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [estilos.botonSocial, estilos.botonApple, pressed && estilos.presionado]}
-                onPress={() => avisarProximamente('Apple')}
-              >
-                <FontAwesome name="apple" size={22} color="#FFFFFF" />
-                <Text style={[estilos.textoBotonSocial, estilos.textoApple]}>Continuar con Apple</Text>
-              </Pressable>
-            </>
-          )}
+          {cargando ? <Text style={estilos.textoVerificando}>Un momento, estamos verificando tus datos.</Text> : null}
 
           <View style={estilos.espaciador} />
 
           <View style={estilos.filaRegistro}>
             <Text style={estilos.textoPie}>¿No tenés cuenta? </Text>
-            <Pressable onPress={() => navigation.navigate('Registro')}>
+            <Pressable onPress={() => navigation.navigate('Registro')} disabled={cargando}>
               <Text style={estilos.enlaceRegistro}>Registrate</Text>
             </Pressable>
           </View>
 
           <Pressable
             style={estilos.filaAyuda}
-            onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
+            onPress={() => navigation.navigate('Ayuda')}
             disabled={cargando}
             hitSlop={8}
           >
@@ -381,12 +325,21 @@ export default function Login({ navigation, route }) {
 
           {!cargando && (
             <Text style={estilos.legal}>
-              Al continuar aceptás los <Text style={estilos.subrayado}>Términos y Condiciones</Text> y la{' '}
-              <Text style={estilos.subrayado}>Política de privacidad</Text>.
+              Al continuar aceptás los{' '}
+              <Text style={estilos.enlaceLegal} onPress={() => setLegal('terminos')}>
+                Términos y Condiciones
+              </Text>{' '}
+              y la{' '}
+              <Text style={estilos.enlaceLegal} onPress={() => setLegal('privacidad')}>
+                Política de privacidad
+              </Text>
+              .
             </Text>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ModalLegal visible={legal !== null} tipo={legal} alCerrar={() => setLegal(null)} />
     </SafeAreaView>
   );
 }
@@ -396,10 +349,6 @@ function crearEstilos(c) {
     pantalla: {
       flex: 1,
       backgroundColor: c.fondo,
-    },
-    centrado: {
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     contenido: {
       flexGrow: 1,
@@ -466,56 +415,6 @@ function crearEstilos(c) {
       color: c.textoSecundario,
       textAlign: 'center',
       marginBottom: 8,
-    },
-    etiqueta: {
-      fontFamily: 'Inter_600SemiBold',
-      fontSize: 13.5,
-      color: c.texto,
-      marginTop: 16,
-      marginBottom: 8,
-    },
-    campo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      height: 52,
-      paddingHorizontal: 16,
-      borderRadius: 14,
-      borderWidth: 1.5,
-      borderColor: c.borde,
-      backgroundColor: c.superficie,
-    },
-    campoActivo: {
-      borderColor: c.marca,
-      backgroundColor: c.superficieActiva,
-    },
-    campoConError: {
-      borderColor: c.peligro,
-    },
-    entrada: {
-      flex: 1,
-      height: '100%',
-      fontFamily: 'Inter_400Regular',
-      fontSize: 16,
-      color: c.texto,
-    },
-    filaError: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: 6,
-    },
-    textoError: {
-      flex: 1,
-      fontFamily: 'Inter_400Regular',
-      fontSize: 12.5,
-      color: c.peligro,
-    },
-    ayuda: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 12.5,
-      color: c.textoSecundario,
-      marginTop: 6,
     },
     filaOpciones: {
       flexDirection: 'row',
@@ -589,52 +488,9 @@ function crearEstilos(c) {
       textAlign: 'center',
       marginTop: 12,
     },
-    separador: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16,
-      marginVertical: 20,
-    },
-    linea: {
-      flex: 1,
-      height: 1,
-      backgroundColor: c.divisor,
-    },
-    textoSeparador: {
-      fontFamily: 'Inter_400Regular',
-      fontSize: 14,
-      color: c.textoSecundario,
-    },
-    botonSocial: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 10,
-      height: 52,
-      borderRadius: 14,
-      borderWidth: 1,
-      marginBottom: 12,
-    },
-    botonGoogle: {
-      backgroundColor: '#FFFFFF',
-      borderColor: '#E6E2D8',
-    },
-    botonApple: {
-      backgroundColor: c.fondoApple,
-      borderColor: c.bordeApple,
-    },
-    textoBotonSocial: {
-      fontFamily: 'Inter_500Medium',
-      fontSize: 16,
-    },
-    textoGoogle: {
-      color: '#161616',
-    },
-    textoApple: {
-      color: '#FFFFFF',
-    },
     espaciador: {
       flex: 1,
+      minHeight: 24,
     },
     filaRegistro: {
       flexDirection: 'row',
@@ -665,7 +521,9 @@ function crearEstilos(c) {
       textAlign: 'center',
       marginTop: 12,
     },
-    subrayado: {
+    enlaceLegal: {
+      fontFamily: 'Inter_600SemiBold',
+      color: c.textoSecundario,
       textDecorationLine: 'underline',
     },
   });

@@ -11,7 +11,9 @@ import { mensajeDeError } from '../src/api/cliente';
 import { aprobarAjuste, listarAjustesPendientes, rechazarAjuste } from '../src/api/ajustes';
 import { TIPOS_AJUSTE, conUnidad, stockARevisar, textoMotivo } from '../src/datos/ajustes';
 import { formatearFechaLarga } from '../src/utilidades/formato';
+import { hapticAdvertencia, hapticExito } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
+import { validarTextoCatalogo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
@@ -102,6 +104,7 @@ export default function Autorizaciones() {
             try {
               await aprobarAjuste(token, ajuste.id);
               if (!montado.current) return;
+              hapticExito();
               setAjustes((anteriores) => anteriores.filter((actual) => actual.id !== ajuste.id));
               avisar('exito', 'Aprobado', `La ${nombreDe(ajuste)} quedó aprobada y el stock ya se actualizó.`);
             } catch (problema) {
@@ -115,16 +118,24 @@ export default function Autorizaciones() {
     );
   };
 
+  const validarMotivoRechazo = (valor, { obligatorio = false } = {}) => {
+    const limpio = limpiar(valor);
+    if (!limpio) return obligatorio ? 'Contá por qué se rechaza.' : '';
+    return validarTextoCatalogo(valor, { etiqueta: 'El motivo', minimo: 3, maximo: 120, obligatorio });
+  };
+
   const confirmarRechazo = async (ajuste) => {
-    const texto = limpiar(motivo);
-    if (!texto) {
-      setErrorMotivo('Contá por qué se rechaza.');
+    const problema = validarMotivoRechazo(motivo, { obligatorio: true });
+    if (problema) {
+      setErrorMotivo(problema);
       return;
     }
+    const texto = limpiar(motivo);
     setProcesando(ajuste.id);
     try {
       await rechazarAjuste(token, ajuste.id, texto);
       if (!montado.current) return;
+      hapticAdvertencia();
       setAjustes((anteriores) => anteriores.filter((actual) => actual.id !== ajuste.id));
       setRechazando(null);
       setMotivo('');
@@ -195,6 +206,7 @@ export default function Autorizaciones() {
                 setMotivo(texto);
                 setErrorMotivo('');
               }}
+              alSalir={() => setErrorMotivo(validarMotivoRechazo(motivo))}
               error={errorMotivo}
               maxLength={120}
               editable={!ocupado}

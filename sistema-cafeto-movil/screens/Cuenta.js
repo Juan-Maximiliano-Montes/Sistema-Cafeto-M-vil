@@ -155,7 +155,7 @@ export default function Cuenta() {
             <Fila
               icono="help-circle-outline"
               texto={esEquipo ? 'Ayuda para el equipo' : '¿Tenés problemas para ingresar?'}
-              alPresionar={() => navigation.navigate('Ayuda', { tipo: esEquipo ? 'equipo' : 'cliente' })}
+              alPresionar={() => navigation.navigate('Ayuda')}
               estilos={estilos}
               colores={colores}
             />
@@ -170,15 +170,6 @@ export default function Cuenta() {
               />
             )}
           </View>
-
-          {!esEquipo && (
-            <View style={estilos.filaEquipo}>
-              <Text style={estilos.textoEquipo}>¿Trabajás en Cafeto? </Text>
-              <Pressable onPress={() => navigation.navigate('EntrarEquipo')} hitSlop={8}>
-                <Text style={[estilos.textoEquipo, estilos.enlace]}>Entrá como equipo</Text>
-              </Pressable>
-            </View>
-          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -249,8 +240,5 @@ function crearEstilos(c) {
     },
     filaTexto: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 16, color: c.texto },
     filaDetalle: { fontFamily: 'Inter_400Regular', fontSize: 15, color: c.textoSecundario },
-    filaEquipo: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-    textoEquipo: { fontFamily: 'Inter_400Regular', fontSize: 14, color: c.textoSecundario },
-    enlace: { fontFamily: 'Inter_600SemiBold', color: c.marca, textDecorationLine: 'underline' },
   });
 }

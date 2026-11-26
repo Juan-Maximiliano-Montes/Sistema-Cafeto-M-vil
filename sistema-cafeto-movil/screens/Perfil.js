@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,19 +15,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import QRCode from 'react-native-qrcode-svg';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
 import { useSesion } from '../src/sesion/SesionContext';
-import { coloresCategoria } from '../src/datos/ejemplo';
+import { erroresPorCampo, mensajeDeError } from '../src/api/cliente';
+import { coloresCategoria } from '../src/datos/categorias';
 import { useCuentaCliente } from '../src/cliente/CuentaClienteContext';
 import { aFecha, aIso, formatearNumero, formatearPuntos } from '../src/utilidades/formato';
+import { hapticExito } from '../src/utilidades/haptics';
 import { iniciales, limpiar } from '../src/utilidades/texto';
 import {
   filtrarNombre,
   filtrarTelefono,
+  formatearTelefonoGuardado,
   validarFechaNacimiento,
   validarNombrePersona,
   validarTelefono,
@@ -36,30 +38,26 @@ import { resumirPuntos } from '../src/utilidades/puntos';
 import CampoTexto from '../src/componentes/CampoTexto';
 import AvisoCuentaCliente from '../src/componentes/AvisoCuentaCliente';
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const MESES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
 const ULTIMOS_MOVIMIENTOS = 3;
 
 function formatearCumple(valor) {
   const fecha = aFecha(valor);
   if (!fecha) return 'Todavía no lo agregaste';
   return `${fecha.getDate()} de ${MESES[fecha.getMonth()]}`;
-}
-
-function leerPerfil(texto) {
-  if (!texto) return null;
-  try {
-    const datos = JSON.parse(texto);
-    if (!datos || typeof datos !== 'object' || Array.isArray(datos)) return null;
-    return {
-      nombre: typeof datos.nombre === 'string' ? limpiar(datos.nombre) : '',
-      apellido: typeof datos.apellido === 'string' ? limpiar(datos.apellido) : '',
-      telefono: typeof datos.telefono === 'string' ? limpiar(datos.telefono) : '',
-      fechaNacimiento: aIso(datos.fechaNacimiento),
-      aceptaPromociones: datos.aceptaPromociones === true,
-    };
-  } catch (error) {
-    return null;
-  }
 }
 
 function separarNombre(completo) {
@@ -72,39 +70,36 @@ export default function Perfil() {
   const { colores, tema, cambiarTema } = useTema();
   const { avisar } = useAviso();
   const { usuario, nombreVisible, actualizarNombre, cerrarSesion } = useSesion();
+  const { cuenta, perfil, cargando: cargandoCuenta, guardarPerfil } = useCuentaCliente();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
-  const [perfil, setPerfil] = useState(null);
   const [editando, setEditando] = useState(false);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
-  const [borrador, setBorrador] = useState({ nombre: '', apellido: '', telefono: '', cumple: null, aceptaPromociones: false });
+  const [borrador, setBorrador] = useState({
+    nombre: '',
+    apellido: '',
+    telefono: '',
+    cumple: null,
+    aceptaPromociones: false,
+  });
   const [errores, setErrores] = useState({});
   const [errorGeneral, setErrorGeneral] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const montado = useRef(true);
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   const uid = usuario?.uid;
-  const claveGuardado = `cafeto:perfil:${uid}`;
   const nombreCompleto =
     limpiar(nombreVisible) || limpiar(`${perfil?.nombre ?? ''} ${perfil?.apellido ?? ''}`) || 'Cliente Cafeto';
-  const { cuenta, cargando: cargandoCuenta } = useCuentaCliente();
   const puntos = resumirPuntos(cuenta);
   const codigo = cuenta?.qr ?? null;
   const movimientos = cuenta?.movimientos ?? [];
-
-  useEffect(() => {
-    if (!uid) return undefined;
-    let vigente = true;
-    AsyncStorage.getItem(`cafeto:perfil:${uid}`)
-      .then((guardado) => {
-        if (vigente) setPerfil(leerPerfil(guardado));
-      })
-      .catch(() => {
-        if (vigente) setPerfil(null);
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [uid]);
 
   const abrirEditor = () => {
     const desdeNombre = separarNombre(nombreCompleto === 'Cliente Cafeto' ? '' : nombreCompleto);
@@ -166,7 +161,7 @@ export default function Perfil() {
     const nuevo = {
       nombre: limpiar(borrador.nombre),
       apellido: limpiar(borrador.apellido),
-      telefono: limpiar(borrador.telefono) || null,
+      telefono: formatearTelefonoGuardado(borrador.telefono),
       fechaNacimiento: aIso(borrador.cumple),
       aceptaPromociones: borrador.aceptaPromociones,
     };
@@ -177,6 +172,7 @@ export default function Perfil() {
     try {
       if (nombreNuevo !== limpiar(nombreVisible)) await actualizarNombre(nombreNuevo);
     } catch (error) {
+      if (!montado.current) return;
       setGuardando(false);
       setErrorGeneral(
         error?.code === 'auth/network-request-failed'
@@ -185,19 +181,46 @@ export default function Perfil() {
       );
       return;
     }
+
     try {
-      await AsyncStorage.setItem(claveGuardado, JSON.stringify(nuevo));
+      await guardarPerfil(nuevo);
     } catch (error) {
+      if (!montado.current) return;
       setGuardando(false);
-      setErrorGeneral('No pudimos guardar tus datos en este celular. Liberá espacio y probá de nuevo.');
+      if (error?.errorAlmacenamiento) {
+        setErrorGeneral('No pudimos guardar tus datos en este celular. Liberá espacio y probá de nuevo.');
+        return;
+      }
+      if (error?.datos?.codigo === 'TELEFONO_DE_OTRO_CLIENTE') {
+        setErrores((previos) => ({
+          ...previos,
+          telefono: 'Ese teléfono ya está en otra ficha del club. Revisalo o consultá en la caja.',
+        }));
+        return;
+      }
+      const porCampo = erroresPorCampo(error);
+      const erroresMapeados = {
+        nombre: porCampo.nombre ?? porCampo.nombre_cliente ?? '',
+        apellido: porCampo.apellido ?? porCampo.apellido_cliente ?? '',
+        telefono: porCampo.telefono ?? porCampo.telefono_cliente ?? '',
+        cumple: porCampo.fecha_nacimiento ?? '',
+      };
+      if (Object.values(erroresMapeados).some(Boolean)) {
+        setErrores(erroresMapeados);
+        return;
+      }
+      setErrorGeneral(mensajeDeError(error, 'No pudimos actualizar tus datos en el sistema. Probá de nuevo.'));
       return;
     }
 
-    setPerfil({ ...nuevo, telefono: nuevo.telefono ?? '' });
+    if (!montado.current) return;
     setGuardando(false);
     setMostrarCalendario(false);
     setEditando(false);
-    setTimeout(() => avisar('exito', 'Datos actualizados', 'Tus datos quedaron guardados.'), 350);
+    hapticExito();
+    setTimeout(() => {
+      if (montado.current) avisar('exito', 'Datos actualizados', 'Tus datos quedaron guardados.');
+    }, 350);
   };
 
   const confirmarSalida = () => {
@@ -322,7 +345,7 @@ export default function Perfil() {
           </Pressable>
           <Pressable
             style={[estilos.fila, estilos.divisor]}
-            onPress={() => navigation.navigate('Ayuda', { tipo: 'cliente' })}
+            onPress={() => navigation.navigate('Ayuda')}
             accessibilityRole="button"
           >
             <Ionicons name="help-circle-outline" size={20} color={colores.textoSecundario} />

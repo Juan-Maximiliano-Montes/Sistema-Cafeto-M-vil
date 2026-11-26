@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -7,9 +7,10 @@ import QRCode from 'react-native-qrcode-svg';
 import { useTema } from '../src/tema/TemaContext';
 import { useSesion } from '../src/sesion/SesionContext';
 import { useCuentaCliente } from '../src/cliente/CuentaClienteContext';
-import { coloresCategoria } from '../src/datos/ejemplo';
+import { coloresCategoria } from '../src/datos/categorias';
 import { limpiar } from '../src/utilidades/texto';
 import { formatearNumero } from '../src/utilidades/formato';
+import { hapticImpactoSuave } from '../src/utilidades/haptics';
 import { resumirPuntos } from '../src/utilidades/puntos';
 import BarraVolver from '../src/componentes/BarraVolver';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
@@ -34,6 +35,10 @@ export default function MiQR({ route }) {
   const puntos = resumirPuntos(cuenta);
   const canje = beneficioPedido(route?.params?.beneficio);
   const tamano = Math.max(160, Math.min(260, width - 140));
+
+  useEffect(() => {
+    if (cuenta?.qr) hapticImpactoSuave();
+  }, [cuenta?.qr]);
 
   return (
     <SafeAreaView style={estilos.pantalla}>
@@ -79,13 +84,6 @@ export default function MiQR({ route }) {
           </View>
         )}
 
-        {cuenta?.ejemplo ? (
-          <CuadroAyuda
-            icono="flask-outline"
-            titulo="Código de la demo"
-            texto="Todavía no está conectado el sistema de la caja. Cuando lo esté, acá vas a ver tu código real de cliente."
-          />
-        ) : null}
         <CuadroAyuda
           icono="sunny-outline"
           titulo="¿No lo lee el escáner?"

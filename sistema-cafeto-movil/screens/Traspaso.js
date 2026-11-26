@@ -11,6 +11,7 @@ import { esOperacionRepetida, mensajeDeError, nuevaClaveOperacion } from '../src
 import { registrarTraspaso } from '../src/api/ajustes';
 import { listarLotes } from '../src/api/stock';
 import { MOTIVOS_AJUSTE, conUnidad, textoDeStock } from '../src/datos/ajustes';
+import { hapticExito } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
 import { leerCantidad, validarCantidad, validarTextoCatalogo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
@@ -131,6 +132,7 @@ export default function Traspaso({ navigation }) {
         clave.current
       );
       clave.current = nuevaClaveOperacion();
+      hapticExito();
       navigation.goBack();
       avisar('exito', 'Traspaso cargado', `El traspaso N° ${resultado.id} quedó esperando que lo apruebe quien autoriza los ajustes.`);
     } catch (problema) {
@@ -197,7 +199,15 @@ export default function Traspaso({ navigation }) {
           />
 
           <Text style={estilos.etiqueta}>Motivo</Text>
-          <Opciones opciones={MOTIVOS_AJUSTE.TRASPASO} elegida={motivo} alElegir={setMotivo} deshabilitado={enviando} />
+          <Opciones
+            opciones={MOTIVOS_AJUSTE.TRASPASO}
+            elegida={motivo}
+            alElegir={(valor) => {
+              setMotivo(valor);
+              setErrores((anteriores) => ({ ...anteriores, detalle: '' }));
+            }}
+            deshabilitado={enviando}
+          />
           {motivo === 'OTRO' ? (
             <CampoTexto
               etiqueta="Detalle"
@@ -208,6 +218,12 @@ export default function Traspaso({ navigation }) {
                 setDetalle(texto);
                 setErrores((anteriores) => ({ ...anteriores, detalle: '' }));
               }}
+              alSalir={() =>
+                setErrores((anteriores) => ({
+                  ...anteriores,
+                  detalle: validarTextoCatalogo(detalle, { etiqueta: 'El detalle', minimo: 3, maximo: 120, obligatorio: true }),
+                }))
+              }
               error={errores.detalle}
               maxLength={130}
               editable={!enviando}
@@ -220,7 +236,10 @@ export default function Traspaso({ navigation }) {
             <SelectorLote
               lotes={lotes}
               elegido={idLote}
-              alElegir={(lote) => setIdLote(lote.id)}
+              alElegir={(lote) => {
+                setIdLote(lote.id);
+                setErrores((anteriores) => ({ ...anteriores, lote: '', cantidad: '' }));
+              }}
               unidad={origen.unidad}
               cargando={cargandoLotes}
               error={errorLotes || errores.lote}
@@ -236,6 +255,14 @@ export default function Traspaso({ navigation }) {
               alCambiar={(texto) => {
                 setCantidad(texto);
                 setErrores((anteriores) => ({ ...anteriores, cantidad: '' }));
+              }}
+              alSalir={() => {
+                if (limpiar(cantidad)) {
+                  setErrores((anteriores) => ({
+                    ...anteriores,
+                    cantidad: validarCantidad(cantidad, { entera: origen.cantidadEntera, existencia: existencia() }),
+                  }));
+                }
               }}
               error={errores.cantidad}
               keyboardType="decimal-pad"
@@ -255,6 +282,17 @@ export default function Traspaso({ navigation }) {
               alCambiar={(texto) => {
                 setCantidadDestino(texto);
                 setErrores((anteriores) => ({ ...anteriores, cantidadDestino: '' }));
+              }}
+              alSalir={() => {
+                if (limpiar(cantidadDestino)) {
+                  setErrores((anteriores) => ({
+                    ...anteriores,
+                    cantidadDestino: validarCantidad(cantidadDestino, {
+                      etiqueta: 'La cantidad que entra',
+                      entera: destino.cantidadEntera,
+                    }),
+                  }));
+                }
               }}
               error={errores.cantidadDestino}
               ayudaAlEnfocar="Por ejemplo, 1 sachet de leche de góndola = 1 litro del insumo."

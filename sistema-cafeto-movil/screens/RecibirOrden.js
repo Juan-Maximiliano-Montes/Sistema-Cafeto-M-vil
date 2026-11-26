@@ -11,8 +11,9 @@ import { esOperacionRepetida, mensajeDeError, nuevaClaveOperacion } from '../src
 import { leerOrden, recepcionar, sonCostosRaros } from '../src/api/compras';
 import { TIPOS_COMPROBANTE, conUnidad } from '../src/datos/ajustes';
 import { aIso, diasHasta, formatearFechaLarga, formatearPrecio } from '../src/utilidades/formato';
+import { hapticAdvertencia, hapticExito } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
-import { leerCantidad, validarCantidad } from '../src/utilidades/validaciones';
+import { leerCantidad, validarCantidad, validarTextoCatalogo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
@@ -41,7 +42,7 @@ function redondear(numero) {
 let siguienteLote = 1;
 function loteVacio(cantidad = '') {
   siguienteLote += 1;
-  return { clave: `l${siguienteLote}`, vence: null, numero: '', cantidad };
+  return { clave: `l${siguienteLote}`, vence: null, numero: '', cantidad, errorCantidad: '', errorNumero: '' };
 }
 
 function filasIniciales(orden) {
@@ -114,18 +115,42 @@ export default function RecibirOrden({ navigation, route }) {
     };
   }, [cargar]);
 
-  const cambiarFila = (id, cambios) =>
-    setFilas((anteriores) => ({ ...anteriores, [id]: { ...anteriores[id], ...cambios, errores: {} } }));
+  const cambiarFila = (id, cambios, camposLimpios = Object.keys(cambios)) =>
+    setFilas((anteriores) => {
+      const actual = anteriores[id];
+      if (!actual) return anteriores;
+      const nuevosErrores = { ...actual.errores };
+      camposLimpios.forEach((campo) => {
+        delete nuevosErrores[campo];
+      });
+      return { ...anteriores, [id]: { ...actual, ...cambios, errores: nuevosErrores } };
+    });
+
+  const establecerErrorFila = (id, campo, mensaje) =>
+    setFilas((anteriores) => {
+      const actual = anteriores[id];
+      if (!actual) return anteriores;
+      const nuevosErrores = { ...actual.errores };
+      if (mensaje) nuevosErrores[campo] = mensaje;
+      else delete nuevosErrores[campo];
+      return { ...anteriores, [id]: { ...actual, errores: nuevosErrores } };
+    });
 
   const cambiarLote = (id, claveLote, cambios) =>
-    setFilas((anteriores) => ({
-      ...anteriores,
-      [id]: {
-        ...anteriores[id],
-        errores: {},
-        lotes: anteriores[id].lotes.map((lote) => (lote.clave === claveLote ? { ...lote, ...cambios } : lote)),
-      },
-    }));
+    setFilas((anteriores) => {
+      const actual = anteriores[id];
+      if (!actual) return anteriores;
+      const nuevosErrores = { ...actual.errores };
+      delete nuevosErrores.lotes;
+      return {
+        ...anteriores,
+        [id]: {
+          ...actual,
+          errores: nuevosErrores,
+          lotes: actual.lotes.map((lote) => (lote.clave === claveLote ? { ...lote, ...cambios } : lote)),
+        },
+      };
+    });
 
   const alEscanear = (codigo) => {
     setEscaneando(false);
@@ -219,8 +244,9 @@ export default function RecibirOrden({ navigation, route }) {
     try {
       const resultado = await recepcionar(token, pedido, clave.current);
       clave.current = nuevaClaveOperacion();
-      navigation.goBack();
       if (resultado.orden.estado === 'CON_DIFERENCIAS') {
+        hapticAdvertencia();
+        navigation.goBack();
         avisar(
           'advertencia',
           'Recibida con diferencias',
@@ -229,6 +255,8 @@ export default function RecibirOrden({ navigation, route }) {
             .join(', ')}.`
         );
       } else {
+        hapticExito();
+        navigation.goBack();
         avisar('exito', 'Orden recibida', 'Entró toda la mercadería y la orden quedó completa.');
       }
     } catch (problema) {
@@ -244,6 +272,7 @@ export default function RecibirOrden({ navigation, route }) {
         return;
       }
       if (sonCostosRaros(problema)) {
+        hapticAdvertencia();
         const raros = problema.costosRaros ?? [];
         marcarCostos(raros);
         const lista = raros
@@ -408,6 +437,13 @@ export default function RecibirOrden({ navigation, route }) {
                 setPunto(valor.replace(/\D/g, ''));
                 setErroresComprobante((anteriores) => ({ ...anteriores, punto: '' }));
               }}
+              alSalir={() => {
+                const limpio = limpiar(punto);
+                if (!limpio) return;
+                const problema =
+                  !/^\d{1,5}$/.test(limpio) || Number(limpio) < 1 ? 'El punto de venta va de 1 a 99999.' : '';
+                setErroresComprobante((anteriores) => ({ ...anteriores, punto: problema }));
+              }}
               error={erroresComprobante.punto ?? ''}
               keyboardType="number-pad"
               maxLength={5}
@@ -421,6 +457,13 @@ export default function RecibirOrden({ navigation, route }) {
               alCambiar={(valor) => {
                 setNumero(valor.replace(/\D/g, ''));
                 setErroresComprobante((anteriores) => ({ ...anteriores, numero: '' }));
+              }}
+              alSalir={() => {
+                const limpio = limpiar(numero);
+                if (!limpio) return;
+                const problema =
+                  !/^\d{1,8}$/.test(limpio) || Number(limpio) < 1 ? 'El número va de 1 a 99999999.' : '';
+                setErroresComprobante((anteriores) => ({ ...anteriores, numero: problema }));
               }}
               error={erroresComprobante.numero ?? ''}
               keyboardType="number-pad"
@@ -471,9 +514,24 @@ export default function RecibirOrden({ navigation, route }) {
                     alCambiar={(valor) => {
                       const cambios = { cantidad: valor };
                       if (producto.controlaVencimiento && fila.lotes.length === 1) {
-                        cambios.lotes = [{ ...fila.lotes[0], cantidad: valor }];
+                        cambios.lotes = [{ ...fila.lotes[0], cantidad: valor, errorCantidad: '' }];
                       }
-                      cambiarFila(producto.id, cambios);
+                      cambiarFila(producto.id, cambios, ['cantidad', 'lotes']);
+                    }}
+                    alSalir={() => {
+                      const limpio = limpiar(fila.cantidad);
+                      if (!limpio || leerCantidad(limpio) === 0) {
+                        establecerErrorFila(producto.id, 'cantidad', '');
+                        return;
+                      }
+                      establecerErrorFila(
+                        producto.id,
+                        'cantidad',
+                        validarCantidad(fila.cantidad, {
+                          etiqueta: 'La cantidad recibida',
+                          entera: producto.cantidadEntera,
+                        })
+                      );
                     }}
                     error={fila.errores.cantidad ?? ''}
                     keyboardType="decimal-pad"
@@ -485,7 +543,17 @@ export default function RecibirOrden({ navigation, route }) {
                     etiqueta="Costo unitario"
                     prefijo={<Text style={estilos.detalle}>$</Text>}
                     valor={fila.costo}
-                    alCambiar={(valor) => cambiarFila(producto.id, { costo: valor })}
+                    alCambiar={(valor) => cambiarFila(producto.id, { costo: valor }, ['costo'])}
+                    alSalir={() => {
+                      const limpio = limpiar(fila.costo);
+                      if (!limpio) return;
+                      const costoLeido = leerCantidad(limpio);
+                      const problema =
+                        costoLeido === null || Number.isNaN(costoLeido) || costoLeido < 0
+                          ? 'El costo va en números, por ejemplo 1500 o 1500,50.'
+                          : '';
+                      establecerErrorFila(producto.id, 'costo', problema);
+                    }}
                     error={fila.errores.costo ?? ''}
                     keyboardType="decimal-pad"
                     maxLength={14}
@@ -531,7 +599,19 @@ export default function RecibirOrden({ navigation, route }) {
                             etiqueta="N° de lote"
                             opcional
                             valor={lote.numero}
-                            alCambiar={(valor) => cambiarLote(producto.id, lote.clave, { numero: valor })}
+                            alCambiar={(valor) => cambiarLote(producto.id, lote.clave, { numero: valor, errorNumero: '' })}
+                            alSalir={() => {
+                              if (!limpiar(lote.numero)) return;
+                              cambiarLote(producto.id, lote.clave, {
+                                errorNumero: validarTextoCatalogo(lote.numero, {
+                                  etiqueta: 'El número de lote',
+                                  minimo: 1,
+                                  maximo: 40,
+                                  obligatorio: false,
+                                }),
+                              });
+                            }}
+                            error={lote.errorNumero ?? ''}
                             maxLength={40}
                             editable={!enviando}
                           />
@@ -539,7 +619,17 @@ export default function RecibirOrden({ navigation, route }) {
                             estiloContenedor={propios.campoMitad}
                             etiqueta="Cantidad"
                             valor={lote.cantidad}
-                            alCambiar={(valor) => cambiarLote(producto.id, lote.clave, { cantidad: valor })}
+                            alCambiar={(valor) => cambiarLote(producto.id, lote.clave, { cantidad: valor, errorCantidad: '' })}
+                            alSalir={() => {
+                              if (!limpiar(lote.cantidad)) return;
+                              cambiarLote(producto.id, lote.clave, {
+                                errorCantidad: validarCantidad(lote.cantidad, {
+                                  etiqueta: 'La cantidad del lote',
+                                  entera: producto.cantidadEntera,
+                                }),
+                              });
+                            }}
+                            error={lote.errorCantidad ?? ''}
                             keyboardType="decimal-pad"
                             maxLength={12}
                             editable={!enviando}
@@ -575,6 +665,14 @@ export default function RecibirOrden({ navigation, route }) {
             alCambiar={(valor) => {
               setOtros(valor);
               setErroresComprobante((anteriores) => ({ ...anteriores, otros: '' }));
+            }}
+            alSalir={() => {
+              const limpio = limpiar(otros);
+              if (!limpio) return;
+              const leido = leerCantidad(limpio);
+              const problema =
+                leido === null || Number.isNaN(leido) || leido < 0 ? 'Va en números, por ejemplo 350 o 350,50.' : '';
+              setErroresComprobante((anteriores) => ({ ...anteriores, otros: problema }));
             }}
             error={erroresComprobante.otros ?? ''}
             keyboardType="decimal-pad"

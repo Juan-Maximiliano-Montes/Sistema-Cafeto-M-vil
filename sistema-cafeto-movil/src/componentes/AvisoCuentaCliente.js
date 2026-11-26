@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useTema } from '../tema/TemaContext';
 import { useCuentaCliente } from '../cliente/CuentaClienteContext';
 import { erroresPorCampo, mensajeDeError } from '../api/cliente';
+import { hapticExito } from '../utilidades/haptics';
 import { limpiar } from '../utilidades/texto';
 import { filtrarDni, filtrarTelefono, validarDni, validarTelefono } from '../utilidades/validaciones';
 import CampoTexto from './CampoTexto';
@@ -58,6 +59,7 @@ export default function AvisoCuentaCliente() {
     setEnviando(true);
     try {
       await buscarConDni(dni);
+      hapticExito();
     } catch (fallo) {
       setErrores({ dni: mensajeDelDni(fallo) });
     } finally {
@@ -78,6 +80,7 @@ export default function AvisoCuentaCliente() {
     setEnviando(true);
     try {
       await completarFicha({ telefono, dni });
+      hapticExito();
     } catch (fallo) {
       const codigoFallo = fallo?.datos?.codigo;
       const porCampo = erroresPorCampo(fallo);
@@ -131,8 +134,9 @@ export default function AvisoCuentaCliente() {
           valor={telefono}
           alCambiar={(texto) => {
             setTelefono(filtrarTelefono(texto));
-            setErrores({});
+            setErrores((anteriores) => ({ ...anteriores, telefono: '', general: '' }));
           }}
+          alSalir={() => setErrores((anteriores) => ({ ...anteriores, telefono: validarTelefono(telefono) }))}
           error={errores.telefono ?? ''}
           keyboardType="phone-pad"
           autoComplete="tel"
@@ -147,8 +151,9 @@ export default function AvisoCuentaCliente() {
           valor={dni}
           alCambiar={(texto) => {
             setDni(filtrarDni(texto));
-            setErrores({});
+            setErrores((anteriores) => ({ ...anteriores, dni: '', general: '' }));
           }}
+          alSalir={() => setErrores((anteriores) => ({ ...anteriores, dni: validarDni(dni) }))}
           error={errores.dni ?? ''}
           ayuda="Sin puntos."
           keyboardType="number-pad"
@@ -175,7 +180,12 @@ export default function AvisoCuentaCliente() {
           valor={dni}
           alCambiar={(texto) => {
             setDni(filtrarDni(texto));
-            setErrores({});
+            setErrores((anteriores) => ({ ...anteriores, dni: '' }));
+          }}
+          alSalir={() => {
+            if (limpiar(dni)) {
+              setErrores((anteriores) => ({ ...anteriores, dni: validarDni(dni, { obligatorio: true }) }));
+            }
           }}
           error={errores.dni ?? ''}
           keyboardType="number-pad"

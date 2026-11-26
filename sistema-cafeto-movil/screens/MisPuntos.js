@@ -5,11 +5,10 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTema } from '../src/tema/TemaContext';
 import { useCuentaCliente } from '../src/cliente/CuentaClienteContext';
-import { categorias as categoriasDeEjemplo, coloresCategoria } from '../src/datos/ejemplo';
+import { categorias as categoriasPorDefecto, coloresCategoria } from '../src/datos/categorias';
 import { formatearNumero, formatearPuntos } from '../src/utilidades/formato';
 import { resumirPuntos } from '../src/utilidades/puntos';
 import BarraVolver from '../src/componentes/BarraVolver';
-import CuadroAyuda from '../src/componentes/CuadroAyuda';
 import EstadoVacio from '../src/componentes/EstadoVacio';
 import AvisoCuentaCliente from '../src/componentes/AvisoCuentaCliente';
 
@@ -18,7 +17,7 @@ export default function MisPuntos({ navigation }) {
   const { cuenta, cargando, actualizar } = useCuentaCliente();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
   const puntos = resumirPuntos(cuenta);
-  const categorias = cuenta?.categorias?.length ? cuenta.categorias : categoriasDeEjemplo;
+  const categorias = cuenta?.categorias?.length ? cuenta.categorias : categoriasPorDefecto;
   const movimientos = cuenta?.movimientos ?? [];
 
   if (!cuenta) {
@@ -46,14 +45,6 @@ export default function MisPuntos({ navigation }) {
       >
         <BarraVolver />
         <Text style={estilos.titulo}>Mis puntos</Text>
-
-        {cuenta.ejemplo ? (
-          <CuadroAyuda
-            icono="flask-outline"
-            titulo="Puntos de ejemplo"
-            texto="Todavía no está conectado el sistema de la caja. Cuando lo esté, acá vas a ver tus puntos reales."
-          />
-        ) : null}
 
         <View style={estilos.tarjeta}>
           <View style={[estilos.chip, { backgroundColor: coloresCategoria[puntos.categoria] ?? colores.marca }]}>
