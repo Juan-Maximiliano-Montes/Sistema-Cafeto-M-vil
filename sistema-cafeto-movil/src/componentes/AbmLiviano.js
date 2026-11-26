@@ -452,7 +452,7 @@ export default function AbmLiviano({ configuracion }) {
       <StatusBar style={colores.barraEstado} />
       <View style={estilos.cabecera}>
         <BarraVolver
-          texto="Gestión"
+          texto="Panel"
           derecha={
             puedeCrear ? (
               <Pressable
@@ -510,7 +510,7 @@ export default function AbmLiviano({ configuracion }) {
       />
 
       <Modal visible={formulario !== null} transparent animationType="slide" onRequestClose={() => cerrarFormulario()}>
-        <KeyboardAvoidingView style={estilos.velo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={estilos.velo} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={estilos.zonaCierre} onPress={() => cerrarFormulario()} accessibilityLabel="Cerrar" />
           {formulario && (
             <View style={estilos.hoja}>

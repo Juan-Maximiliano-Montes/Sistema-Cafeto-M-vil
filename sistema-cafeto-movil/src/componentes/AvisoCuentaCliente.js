@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTema } from '../tema/TemaContext';
 import { useCuentaCliente } from '../cliente/CuentaClienteContext';
@@ -48,6 +48,14 @@ export default function AvisoCuentaCliente() {
   const [telefono, setTelefono] = useState('');
   const [errores, setErrores] = useState({});
   const [enviando, setEnviando] = useState(false);
+  const montado = useRef(true);
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   const buscar = async () => {
     if (enviando) return;
@@ -61,9 +69,9 @@ export default function AvisoCuentaCliente() {
       await buscarConDni(dni);
       hapticExito();
     } catch (fallo) {
-      setErrores({ dni: mensajeDelDni(fallo) });
+      if (montado.current) setErrores({ dni: mensajeDelDni(fallo) });
     } finally {
-      setEnviando(false);
+      if (montado.current) setEnviando(false);
     }
   };
 
@@ -82,6 +90,7 @@ export default function AvisoCuentaCliente() {
       await completarFicha({ telefono, dni });
       hapticExito();
     } catch (fallo) {
+      if (!montado.current) return;
       const codigoFallo = fallo?.datos?.codigo;
       const porCampo = erroresPorCampo(fallo);
       if (codigoFallo === 'TELEFONO_DE_OTRO_CLIENTE') {
@@ -94,7 +103,7 @@ export default function AvisoCuentaCliente() {
         setErrores({ general: mensajeDeError(fallo, 'No pudimos crear tu ficha.') });
       }
     } finally {
-      setEnviando(false);
+      if (montado.current) setEnviando(false);
     }
   };
 
@@ -151,7 +160,12 @@ export default function AvisoCuentaCliente() {
           valor={dni}
           alCambiar={(texto) => {
             setDni(filtrarDni(texto));
-            setErrores((anteriores) => ({ ...anteriores, dni: '', general: '' }));
+            setErrores((anteriores) => ({
+              ...anteriores,
+              dni: '',
+              general: '',
+              ...(anteriores.telefono === 'Cargá tu teléfono o tu DNI.' ? { telefono: '' } : {}),
+            }));
           }}
           alSalir={() => setErrores((anteriores) => ({ ...anteriores, dni: validarDni(dni) }))}
           error={errores.dni ?? ''}

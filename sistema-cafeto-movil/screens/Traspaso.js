@@ -18,9 +18,28 @@ import BarraVolver from '../src/componentes/BarraVolver';
 import BuscadorProducto from '../src/componentes/BuscadorProducto';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
+import { BotonAyuda } from '../src/componentes/HojaAyuda';
 import Opciones from '../src/componentes/Opciones';
 import SelectorLote from '../src/componentes/SelectorLote';
 import { crearEstilosTarea } from '../src/componentes/estilosTarea';
+
+const AYUDA_TRASPASO = [
+  {
+    icono: 'swap-horizontal-outline',
+    titulo: 'De góndola a insumo',
+    texto: 'Usalo cuando retirás un producto de reventa (ej. leche de góndola) para usarlo como insumo en cafetería.',
+  },
+  {
+    icono: 'ban-outline',
+    titulo: 'Destino sin lotes',
+    texto: 'El producto que recibe no puede manejar vencimiento por lote: los lotes nuevos solo entran por compra o conteo.',
+  },
+  {
+    icono: 'scale-outline',
+    titulo: 'Conversión de unidades',
+    texto: 'Indicá cuántas unidades salen del origen y qué cantidad equivalente entra en la unidad del destino.',
+  },
+];
 
 const SIN_ERRORES = { origen: '', lote: '', cantidad: '', destino: '', cantidadDestino: '', detalle: '' };
 
@@ -132,6 +151,7 @@ export default function Traspaso({ navigation }) {
         clave.current
       );
       clave.current = nuevaClaveOperacion();
+      if (!montado.current) return;
       hapticExito();
       navigation.goBack();
       avisar('exito', 'Traspaso cargado', `El traspaso N° ${resultado.id} quedó esperando que lo apruebe quien autoriza los ajustes.`);
@@ -186,7 +206,17 @@ export default function Traspaso({ navigation }) {
       <StatusBar style={colores.barraEstado} />
       <KeyboardAvoidingView style={estilos.pantalla} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
-          <BarraVolver deshabilitado={enviando} />
+          <BarraVolver
+            deshabilitado={enviando}
+            derecha={
+              <BotonAyuda
+                titulo="Traspaso"
+                subtitulo="Movimiento interno entre productos"
+                items={AYUDA_TRASPASO}
+                deshabilitado={enviando}
+              />
+            }
+          />
           <Text style={estilos.titulo}>Traspaso</Text>
           <Text style={estilos.subtitulo}>
             Pasá mercadería de un producto a otro, por ejemplo la leche de góndola que se usa en la cafetería.

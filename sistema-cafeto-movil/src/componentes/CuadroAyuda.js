@@ -3,8 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTema } from '../tema/TemaContext';
-
-const PREFIJO = 'cafeto:ayuda:';
+import { PREFIJO_AYUDA, useGuias } from '../ayuda/GuiasContext';
 
 export default function CuadroAyuda({
   id,
@@ -17,13 +16,14 @@ export default function CuadroAyuda({
   estilo,
 }) {
   const { colores } = useTema();
+  const { versionGuias } = useGuias();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
   const [visible, setVisible] = useState(!cerrable);
 
   useEffect(() => {
     if (!cerrable || !id) return undefined;
     let vigente = true;
-    AsyncStorage.getItem(`${PREFIJO}${id}`)
+    AsyncStorage.getItem(`${PREFIJO_AYUDA}${id}`)
       .then((valor) => {
         if (vigente) setVisible(valor !== 'visto');
       })
@@ -33,11 +33,11 @@ export default function CuadroAyuda({
     return () => {
       vigente = false;
     };
-  }, [cerrable, id]);
+  }, [cerrable, id, versionGuias]);
 
   const cerrar = () => {
     setVisible(false);
-    if (id) AsyncStorage.setItem(`${PREFIJO}${id}`, 'visto').catch(() => null);
+    if (id) AsyncStorage.setItem(`${PREFIJO_AYUDA}${id}`, 'visto').catch(() => null);
   };
 
   if (!visible) return null;

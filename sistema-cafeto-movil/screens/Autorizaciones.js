@@ -18,7 +18,26 @@ import BarraVolver from '../src/componentes/BarraVolver';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
 import EstadoVacio from '../src/componentes/EstadoVacio';
+import { BotonAyuda } from '../src/componentes/HojaAyuda';
 import { crearEstilosTarea } from '../src/componentes/estilosTarea';
+
+const AYUDA_AUTORIZACIONES = [
+  {
+    icono: 'people-outline',
+    titulo: 'Control por oposición',
+    texto: 'Por seguridad interna, quien carga un conteo, merma o traspaso no puede aprobarlo (salvo perfil Administrador).',
+  },
+  {
+    icono: 'checkmark-done-outline',
+    titulo: 'Impacto en el stock',
+    texto: 'Recién al aprobar se actualiza el stock en el sistema. Si lo rechazás, no se mueve ninguna unidad.',
+  },
+  {
+    icono: 'chatbox-ellipses-outline',
+    titulo: 'Motivo al rechazar',
+    texto: 'Al rechazar un ajuste, dejá escrito el motivo para que quede asentado en la auditoría.',
+  },
+];
 
 function formatearDiferencia(numero, unidad) {
   if (numero === null) return '';
@@ -277,7 +296,16 @@ export default function Autorizaciones() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={propios.cabecera}>
-            <BarraVolver />
+            <BarraVolver
+              derecha={
+                <BotonAyuda
+                  titulo="Autorizar ajustes"
+                  subtitulo="Cómo revisar pendientes de stock"
+                  items={AYUDA_AUTORIZACIONES}
+                  deshabilitado={procesando !== null}
+                />
+              }
+            />
             <Text style={estilos.titulo}>Autorizar ajustes</Text>
             <Text style={estilos.subtitulo}>Conteos, mermas y traspasos que esperan tu visto bueno.</Text>
             <CuadroAyuda

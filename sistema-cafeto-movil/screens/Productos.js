@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useTema } from '../src/tema/TemaContext';
+import { useSesion } from '../src/sesion/SesionContext';
 import { mensajeDeError } from '../src/api/cliente';
 import { unirSinRepetidos } from '../src/api/formas';
 import { SECCIONES, listarProductos, listarRubrosDeSeccion } from '../src/api/catalogo';
@@ -35,6 +36,8 @@ function esSeccionValida(clave) {
 
 export default function Productos({ route }) {
   const { colores } = useTema();
+  const { rol } = useSesion();
+  const esEquipo = rol === 'equipo';
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
   const { width } = useWindowDimensions();
   const anchoTarjeta = Math.floor((width - MARGEN * 2 - SEPARACION) / 2);
@@ -272,12 +275,16 @@ export default function Productos({ route }) {
         </ScrollView>
       )}
       <CuadroAyuda
-        id="productos-precios"
+        id={esEquipo ? 'productos-vista-equipo' : 'productos-precios'}
         cerrable
-        icono="pricetag-outline"
+        icono={esEquipo ? 'eye-outline' : 'pricetag-outline'}
         tipo="consejo"
-        titulo="Precios del mostrador"
-        texto="Son los mismos que pagás en el local. Las ofertas por vencimiento cambian todos los días y valen hasta agotar stock."
+        titulo={esEquipo ? 'Vista del mostrador' : 'Precios del mostrador'}
+        texto={
+          esEquipo
+            ? 'Así ven los clientes el catálogo publicado y las rebajas vigentes de hoy. Tocá un producto para ver su estado operativo.'
+            : 'Son los mismos que pagás en el local. Las ofertas por vencimiento cambian todos los días y valen hasta agotar stock.'
+        }
       />
     </View>
   );

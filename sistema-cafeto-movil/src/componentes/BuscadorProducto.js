@@ -35,10 +35,18 @@ export default function BuscadorProducto({
   const [error, setError] = useState('');
   const [escaneando, setEscaneando] = useState(false);
   const ultima = useRef(0);
+  const montado = useRef(true);
   const entrada = useRef(null);
   const llamadas = useRef({ alCerrar, filtrar, manejarError });
   llamadas.current = { alCerrar, filtrar, manejarError };
   const token = equipo?.token;
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -64,13 +72,13 @@ export default function BuscadorProducto({
       setCargando(true);
       try {
         const respuesta = await consultarProductos(token, codigo ? { codigo } : { busqueda: texto });
-        if (consulta !== ultima.current) return;
+        if (!montado.current || consulta !== ultima.current) return;
         const { filtrar: filtro } = llamadas.current;
         setResultados(filtro ? respuesta.resultados.filter(filtro) : respuesta.resultados);
         setHayMas(respuesta.hayMas);
         setError('');
       } catch (problema) {
-        if (consulta !== ultima.current) return;
+        if (!montado.current || consulta !== ultima.current) return;
         if (problema?.estado === 401 || problema?.estado === 403) {
           llamadas.current.alCerrar();
           llamadas.current.manejarError(problema);
@@ -78,7 +86,7 @@ export default function BuscadorProducto({
         }
         setError(mensajeDeError(problema, 'No pudimos buscar el producto.'));
       } finally {
-        if (consulta === ultima.current) setCargando(false);
+        if (montado.current && consulta === ultima.current) setCargando(false);
       }
     }, codigo ? 0 : ESPERA);
     return () => clearTimeout(espera);

@@ -296,11 +296,21 @@ Los mismos bloques que el inicio de la web, cada uno según su permiso:
     { "tipo": "aviso", "texto": "2 ajuste(s) de stock esperan tu autorización.", "destino": "AJUSTES" },
     { "tipo": "aviso", "texto": "1 orden(es) de compra llegaron con diferencias: revisalas con el proveedor.", "destino": "ORDENES" },
     { "tipo": "aviso", "texto": "2 pago(s) vencen en los próximos 7 días.", "destino": "WEB" }
-  ]
+  ],
+  "fidelizacion": {
+    "periodo": "Últimos 30 días",
+    "clientes_activos": 142,
+    "canjes_periodo": 38,
+    "puntos_emitidos_periodo": 18450,
+    "beneficios_mas_usados": [
+      { "id": 4, "titulo": "Café con leche gratis", "tipo": "CANJEABLE", "categoria": "Bronze", "usos": 19 },
+      { "id": 7, "titulo": "10% de descuento en cafetería", "tipo": "AUTOMATICO", "categoria": "Silver", "usos": 12 }
+    ]
+  }
 }
 ```
 
-`destino` dice a qué pantalla lleva el aviso en la app: `ALERTAS`, `AJUSTES`, `ORDENES` o `WEB` (se resuelve en la web: pagos, seguridad).
+`destino` dice a qué pantalla lleva el aviso en la app: `ALERTAS`, `AJUSTES`, `ORDENES` o `WEB` (se resuelve en la web: pagos, seguridad). El bloque `fidelizacion` es opcional y solo se incluye cuando el usuario es titular o posee el permiso `ver_reportes`; si se omite o es `null`, la app adapta el panel sin mostrar espacios vacíos.
 
 ### Lotes y ofertas
 

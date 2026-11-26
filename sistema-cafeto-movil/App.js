@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Navigation from './navigation/Navigation';
 import { TemaProvider } from './src/tema/TemaContext';
 import { AvisoProvider } from './src/aviso/AvisoContext';
+import { GuiasProvider } from './src/ayuda/GuiasContext';
 import { SesionProvider } from './src/sesion/SesionContext';
 import { CuentaClienteProvider } from './src/cliente/CuentaClienteContext';
 
@@ -12,11 +13,13 @@ export default function App() {
     <SafeAreaProvider>
       <TemaProvider>
         <AvisoProvider>
-          <SesionProvider>
-            <CuentaClienteProvider>
-              <Navigation />
-            </CuentaClienteProvider>
-          </SesionProvider>
+          <GuiasProvider>
+            <SesionProvider>
+              <CuentaClienteProvider>
+                <Navigation />
+              </CuentaClienteProvider>
+            </SesionProvider>
+          </GuiasProvider>
         </AvisoProvider>
       </TemaProvider>
     </SafeAreaProvider>

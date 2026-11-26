@@ -6,7 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
+import { useGuias } from '../src/ayuda/GuiasContext';
 import { useSesion } from '../src/sesion/SesionContext';
+import { hapticExito } from '../src/utilidades/haptics';
 
 const ventajas = [
   { icono: 'star-outline', texto: 'Sumás puntos en cada compra mostrando tu QR.' },
@@ -40,8 +42,19 @@ export default function Cuenta() {
   const navigation = useNavigation();
   const { colores, tema, logo, cambiarTema } = useTema();
   const { avisar } = useAviso();
+  const { restablecerGuias } = useGuias();
   const { rol, equipo, cerrarSesion } = useSesion();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
+
+  const reactivarGuias = async () => {
+    try {
+      await restablecerGuias();
+      hapticExito();
+      avisar('exito', 'Guías restablecidas', 'Los consejos y ayudas volverán a aparecer al recorrer las pantallas.');
+    } catch (error) {
+      avisar('error', 'No se pudo completar', 'No pudimos restablecer las ayudas en este momento.');
+    }
+  };
 
   const confirmarSalida = () => {
     avisar('advertencia', '¿Cerrar sesión?', 'Vas a tener que volver a entrar con tu usuario del sistema.', [
@@ -91,9 +104,9 @@ export default function Cuenta() {
             </Text>
             <Pressable
               style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.presionado]}
-              onPress={() => navigation.navigate('Gestion')}
+              onPress={() => navigation.navigate('Inicio')}
             >
-              <Text style={estilos.textoBotonPrincipal}>Ir a Gestión</Text>
+              <Text style={estilos.textoBotonPrincipal}>Ir al Panel</Text>
             </Pressable>
           </View>
         ) : (
@@ -149,6 +162,13 @@ export default function Cuenta() {
               texto="Tema"
               detalle={tema === 'oscuro' ? 'Oscuro' : 'Claro'}
               alPresionar={cambiarTema}
+              estilos={estilos}
+              colores={colores}
+            />
+            <Fila
+              icono="bulb-outline"
+              texto="Restablecer guías y ayudas"
+              alPresionar={reactivarGuias}
               estilos={estilos}
               colores={colores}
             />

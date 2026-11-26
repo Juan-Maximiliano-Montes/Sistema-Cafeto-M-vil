@@ -8,7 +8,6 @@ import { useSesion } from '../src/sesion/SesionContext';
 import Inicio from '../screens/Inicio';
 import Productos from '../screens/Productos';
 import Beneficios from '../screens/Beneficios';
-import Gestion from '../screens/Gestion';
 import Perfil from '../screens/Perfil';
 import Cuenta from '../screens/Cuenta';
 
@@ -18,7 +17,6 @@ const iconos = {
   Inicio: ['home', 'home-outline'],
   Productos: ['storefront', 'storefront-outline'],
   Beneficios: ['gift', 'gift-outline'],
-  Gestion: ['briefcase', 'briefcase-outline'],
   Perfil: ['person', 'person-outline'],
 };
 
@@ -33,12 +31,18 @@ export default function Pestanas() {
   const insets = useSafeAreaInsets();
   const abajo = Math.max(insets.bottom, 10);
 
+  const esEquipo = rol === 'equipo';
+
   const etiquetas = {
-    Inicio: 'Inicio',
+    Inicio: esEquipo ? 'Panel' : 'Inicio',
     Productos: 'Productos',
     Beneficios: 'Beneficios',
-    Gestion: 'Gestión',
-    Perfil: rol === 'invitado' ? 'Entrar' : rol === 'equipo' ? 'Cuenta' : 'Perfil',
+    Perfil: rol === 'invitado' ? 'Entrar' : esEquipo ? 'Cuenta' : 'Perfil',
+  };
+
+  const iconosPorRuta = {
+    ...iconos,
+    Inicio: esEquipo ? ['grid', 'grid-outline'] : iconos.Inicio,
   };
 
   return (
@@ -67,18 +71,14 @@ export default function Pestanas() {
           </Text>
         ),
         tabBarIcon: ({ color, size, focused }) => (
-          <Ionicons name={iconos[route.name][focused ? 0 : 1]} size={size} color={color} />
+          <Ionicons name={iconosPorRuta[route.name][focused ? 0 : 1]} size={size} color={color} />
         ),
         tabBarAccessibilityLabel: etiquetas[route.name],
       })}
     >
       <Tab.Screen name="Inicio" component={Inicio} />
       <Tab.Screen name="Productos" component={Productos} />
-      {rol === 'equipo' ? (
-        <Tab.Screen name="Gestion" component={Gestion} />
-      ) : (
-        <Tab.Screen name="Beneficios" component={Beneficios} />
-      )}
+      {!esEquipo && <Tab.Screen name="Beneficios" component={Beneficios} />}
       <Tab.Screen name="Perfil" component={PestanaPerfil} />
     </Tab.Navigator>
   );

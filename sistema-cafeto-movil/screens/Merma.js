@@ -18,9 +18,28 @@ import BarraVolver from '../src/componentes/BarraVolver';
 import BuscadorProducto from '../src/componentes/BuscadorProducto';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
+import { BotonAyuda } from '../src/componentes/HojaAyuda';
 import Opciones from '../src/componentes/Opciones';
 import SelectorLote from '../src/componentes/SelectorLote';
 import { crearEstilosTarea } from '../src/componentes/estilosTarea';
+
+const AYUDA_MERMA = [
+  {
+    icono: 'time-outline',
+    titulo: 'Queda pendiente de aprobación',
+    texto: 'Al enviar la merma no se descuenta el stock en el acto: pasa a Autorizar ajustes para control.',
+  },
+  {
+    icono: 'layers-outline',
+    titulo: 'Selección de lote',
+    texto: 'En productos con control de vencimiento, indicá exactamente el lote afectado (incluidos los ya vencidos).',
+  },
+  {
+    icono: 'document-text-outline',
+    titulo: 'Motivo «Otro»',
+    texto: 'Si elegís «Otro», es obligatorio detallar brevemente qué ocurrió.',
+  },
+];
 
 const conStockPropio = (producto) => producto.stockActual !== null;
 
@@ -182,6 +201,7 @@ export default function Merma({ navigation, route }) {
         clave.current
       );
       clave.current = nuevaClaveOperacion();
+      if (!montado.current) return;
       hapticExito();
       navigation.goBack();
       avisar('exito', 'Merma cargada', `La merma N° ${resultado.id} quedó esperando que la apruebe quien autoriza los ajustes.`);
@@ -206,7 +226,17 @@ export default function Merma({ navigation, route }) {
       <StatusBar style={colores.barraEstado} />
       <KeyboardAvoidingView style={estilos.pantalla} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
-          <BarraVolver deshabilitado={enviando} />
+          <BarraVolver
+            deshabilitado={enviando}
+            derecha={
+              <BotonAyuda
+                titulo="Cargar merma"
+                subtitulo="Bajas por rotura o vencimiento"
+                items={AYUDA_MERMA}
+                deshabilitado={enviando}
+              />
+            }
+          />
           <Text style={estilos.titulo}>Cargar merma</Text>
           <Text style={estilos.subtitulo}>Lo que se rompió, se venció o ya no se puede vender.</Text>
           <CuadroAyuda

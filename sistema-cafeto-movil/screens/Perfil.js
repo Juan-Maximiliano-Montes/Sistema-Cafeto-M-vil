@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import QRCode from 'react-native-qrcode-svg';
 import { useTema } from '../src/tema/TemaContext';
 import { useAviso } from '../src/aviso/AvisoContext';
+import { useGuias } from '../src/ayuda/GuiasContext';
 import { useSesion } from '../src/sesion/SesionContext';
 import { erroresPorCampo, mensajeDeError } from '../src/api/cliente';
 import { coloresCategoria } from '../src/datos/categorias';
@@ -69,6 +70,7 @@ export default function Perfil() {
   const navigation = useNavigation();
   const { colores, tema, cambiarTema } = useTema();
   const { avisar } = useAviso();
+  const { restablecerGuias } = useGuias();
   const { usuario, nombreVisible, actualizarNombre, cerrarSesion } = useSesion();
   const { cuenta, perfil, cargando: cargandoCuenta, guardarPerfil } = useCuentaCliente();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
@@ -223,6 +225,16 @@ export default function Perfil() {
     }, 350);
   };
 
+  const reactivarGuias = async () => {
+    try {
+      await restablecerGuias();
+      hapticExito();
+      avisar('exito', 'Guías restablecidas', 'Los consejos y ayudas volverán a aparecer al recorrer la app.');
+    } catch (error) {
+      avisar('error', 'No se pudo completar', 'No pudimos restablecer las ayudas en este momento.');
+    }
+  };
+
   const confirmarSalida = () => {
     avisar('advertencia', '¿Cerrar sesión?', 'Vas a tener que volver a ingresar con tu correo y contraseña.', [
       { texto: 'Cancelar', estilo: 'cancelar' },
@@ -345,6 +357,15 @@ export default function Perfil() {
           </Pressable>
           <Pressable
             style={[estilos.fila, estilos.divisor]}
+            onPress={reactivarGuias}
+            accessibilityRole="button"
+          >
+            <Ionicons name="bulb-outline" size={20} color={colores.textoSecundario} />
+            <Text style={estilos.etiqueta}>Restablecer guías y ayudas</Text>
+            <Ionicons name="refresh-outline" size={18} color={colores.textoTenue} />
+          </Pressable>
+          <Pressable
+            style={[estilos.fila, estilos.divisor]}
             onPress={() => navigation.navigate('Ayuda')}
             accessibilityRole="button"
           >
@@ -360,7 +381,7 @@ export default function Perfil() {
       </ScrollView>
 
       <Modal visible={editando} transparent animationType="slide" onRequestClose={cerrarEditor}>
-        <KeyboardAvoidingView style={estilos.fondoModal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={estilos.fondoModal} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={estilos.zonaCierre} onPress={cerrarEditor} accessibilityLabel="Cerrar" />
           <View style={estilos.modal}>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

@@ -19,9 +19,28 @@ import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
 import EscanerCodigo from '../src/componentes/EscanerCodigo';
 import EstadoVacio from '../src/componentes/EstadoVacio';
+import { BotonAyuda } from '../src/componentes/HojaAyuda';
 import Opciones from '../src/componentes/Opciones';
 import SelectorFecha from '../src/componentes/SelectorFecha';
 import { crearEstilosTarea } from '../src/componentes/estilosTarea';
+
+const AYUDA_RECEPCION = [
+  {
+    icono: 'cube-outline',
+    titulo: 'Entregas parciales',
+    texto: 'Cargá únicamente lo que llegó hoy. Si falta mercadería, dejá la cantidad real o en blanco y la orden quedará con diferencias.',
+  },
+  {
+    icono: 'calendar-outline',
+    titulo: 'Lotes y vencimientos',
+    texto: 'Si vinieron varios lotes de un mismo producto con distinta fecha, sumalos con «+ Otro lote con otra fecha».',
+  },
+  {
+    icono: 'pricetag-outline',
+    titulo: 'Control de costos raros',
+    texto: 'Si un costo varía mucho respecto al anterior, el sistema te avisará antes de guardar para evitar un cero de más.',
+  },
+];
 
 const DIAS_DE_ATRASO = 30;
 const DIAS_MAXIMOS_VENCIMIENTO = 3660;
@@ -244,6 +263,7 @@ export default function RecibirOrden({ navigation, route }) {
     try {
       const resultado = await recepcionar(token, pedido, clave.current);
       clave.current = nuevaClaveOperacion();
+      if (!montado.current) return;
       if (resultado.orden.estado === 'CON_DIFERENCIAS') {
         hapticAdvertencia();
         navigation.goBack();
@@ -400,16 +420,24 @@ export default function RecibirOrden({ navigation, route }) {
           <BarraVolver
             deshabilitado={enviando}
             derecha={
-              <Pressable
-                style={({ pressed }) => [propios.botonEscanear, pressed && estilos.presionado]}
-                onPress={() => setEscaneando(true)}
-                disabled={enviando}
-                accessibilityRole="button"
-                accessibilityLabel="Escanear un producto de la orden"
-              >
-                <Ionicons name="scan-outline" size={18} color={colores.textoSobreMarca} />
-                <Text style={propios.textoEscanear}>Escanear</Text>
-              </Pressable>
+              <View style={propios.accionesDerecha}>
+                <BotonAyuda
+                  titulo="Recibir mercadería"
+                  subtitulo="Control de entrega del proveedor"
+                  items={AYUDA_RECEPCION}
+                  deshabilitado={enviando}
+                />
+                <Pressable
+                  style={({ pressed }) => [propios.botonEscanear, pressed && estilos.presionado]}
+                  onPress={() => setEscaneando(true)}
+                  disabled={enviando}
+                  accessibilityRole="button"
+                  accessibilityLabel="Escanear un producto de la orden"
+                >
+                  <Ionicons name="scan-outline" size={18} color={colores.textoSobreMarca} />
+                  <Text style={propios.textoEscanear}>Escanear</Text>
+                </Pressable>
+              </View>
             }
           />
           <Text style={estilos.titulo}>{orden.proveedor.nombre}</Text>
@@ -727,6 +755,7 @@ export default function RecibirOrden({ navigation, route }) {
 
 function crearEstilos(c) {
   return StyleSheet.create({
+    accionesDerecha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     botonEscanear: {
       flexDirection: 'row',
       alignItems: 'center',

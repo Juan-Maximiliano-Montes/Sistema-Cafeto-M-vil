@@ -51,12 +51,19 @@ export default function ConsultaProducto({ navigation, route }) {
   }, []);
 
   const pedida = route?.params?.busqueda;
+  const pedidoEscanear = route?.params?.escanear;
   useEffect(() => {
     if (typeof pedida === 'string' && limpiar(pedida)) {
       setCodigo('');
       setBusqueda(limpiar(pedida));
     }
   }, [pedida]);
+
+  useEffect(() => {
+    if (pedidoEscanear) {
+      setEscaneando(true);
+    }
+  }, [pedidoEscanear]);
 
   useEffect(() => {
     if (codigo) return undefined;

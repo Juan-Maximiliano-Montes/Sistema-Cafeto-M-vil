@@ -125,7 +125,7 @@ const PROBLEMAS_EQUIPO = [
   {
     id: 'tareas',
     icono: 'lock-closed-outline',
-    titulo: 'No veo una tarea en Gestión',
+    titulo: 'No veo una tarea en el Panel',
     pasos: [
       'Cada tarea aparece según los permisos de tu perfil.',
       'Si necesitás alguna, pedísela al administrador. Después cerrá sesión y volvé a entrar para que se actualice.',
@@ -155,22 +155,24 @@ function mensajeDeRestablecer(error) {
   switch (error?.code) {
     case 'auth/invalid-email':
       return 'El formato del correo no es válido.';
-    case 'auth/user-not-found':
-      return 'No encontramos una cuenta con ese correo. Revisalo o creá tu cuenta.';
     case 'auth/too-many-requests':
       return 'Pediste muchos enlaces seguidos. Esperá unos minutos y probá de nuevo.';
     case 'auth/network-request-failed':
       return 'No hay conexión. Revisá el wifi o los datos del teléfono.';
     default:
-      return `No pudimos mandar el enlace. Probá de nuevo en un rato.${error?.code ? ` (${error.code})` : ''}`;
+      return 'No pudimos mandar el enlace ahora. Probá de nuevo en un rato.';
   }
+}
+
+function obtenerProblemasSegunSesion(esEquipoAutenticado) {
+  return esEquipoAutenticado ? PROBLEMAS_EQUIPO : PROBLEMAS_CLIENTE;
 }
 
 export default function Ayuda({ navigation }) {
   const { colores } = useTema();
-  const { usuario, rol } = useSesion();
+  const { usuario, rol, equipo } = useSesion();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
-  const esEquipo = rol === 'equipo';
+  const esEquipo = rol === 'equipo' && Boolean(equipo?.token);
   const esCliente = rol === 'cliente';
 
   const [busqueda, setBusqueda] = useState('');
@@ -188,13 +190,19 @@ export default function Ayuda({ navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    setAbierto(null);
+    setBusqueda('');
+  }, [esEquipo]);
+
   const rutas = navigation.getState()?.routeNames ?? [];
-  const problemas = esEquipo ? PROBLEMAS_EQUIPO : PROBLEMAS_CLIENTE;
+  const problemas = obtenerProblemasSegunSesion(esEquipo);
   const visibles = problemas.filter((problema) => coincide(`${problema.titulo} ${problema.pasos.join(' ')}`, busqueda));
 
   const alternar = (id) => setAbierto((actual) => (actual === id ? null : id));
 
   const restablecer = async () => {
+    if (esEquipo) return;
     const error = validarCorreo(correo, { obligatorio: true });
     if (error) {
       setErrorCorreo(error);
@@ -210,7 +218,12 @@ export default function Ayuda({ navigation }) {
       await sendPasswordResetEmail(auth, correo.trim());
       if (montado.current) setEnviadoA(correo.trim());
     } catch (problema) {
-      if (montado.current) setErrorCorreo(mensajeDeRestablecer(problema));
+      if (!montado.current) return;
+      if (problema?.code === 'auth/user-not-found') {
+        setEnviadoA(correo.trim());
+      } else {
+        setErrorCorreo(mensajeDeRestablecer(problema));
+      }
     } finally {
       if (montado.current) setEnviando(false);
     }
@@ -349,7 +362,7 @@ export default function Ayuda({ navigation }) {
                             <Text style={estilos.textoPaso}>{paso}</Text>
                           </View>
                         ))}
-                        {problema.restablecer ? renderRestablecer() : null}
+                        {!esEquipo && problema.restablecer ? renderRestablecer() : null}
                         {renderAccion(problema)}
                       </View>
                     )}

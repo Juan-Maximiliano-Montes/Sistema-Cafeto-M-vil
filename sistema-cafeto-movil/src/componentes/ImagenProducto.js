@@ -5,19 +5,46 @@ import { ORIGEN_API } from '../api/cliente';
 import { useTema } from '../tema/TemaContext';
 import { iconoSeguro } from './iconos';
 
+function extraerHost(url) {
+  const coincidencia = url.match(/^https?:\/\/([^/?#]+)/i);
+  return coincidencia ? coincidencia[1].toLowerCase() : '';
+}
+
+function codificarEspacios(url) {
+  return url.replace(/\s/g, '%20');
+}
+
 export function resolverUrlImagen(imagen) {
   if (typeof imagen !== 'string') return null;
   const limpia = imagen.trim();
   if (!limpia) return null;
-  if (limpia.startsWith('/')) {
-    return ORIGEN_API ? `${ORIGEN_API}${limpia}` : null;
+
+  if (limpia.startsWith('//')) {
+    return codificarEspacios(`https:${limpia}`);
   }
-  if (/^https:\/\//i.test(limpia)) return limpia;
+
+  if (limpia.startsWith('/') || !/^[a-z][a-z0-9+.-]*:/i.test(limpia)) {
+    if (!ORIGEN_API) return null;
+    const ruta = limpia.replace(/^\/+/, '');
+    return ruta ? codificarEspacios(`${ORIGEN_API}/${ruta}`) : null;
+  }
+
+  if (/^https:\/\//i.test(limpia)) {
+    return codificarEspacios(limpia);
+  }
+
   if (/^http:\/\//i.test(limpia)) {
+    const hostOrigen = extraerHost(ORIGEN_API);
+    const hostImagen = extraerHost(limpia);
+    if (hostOrigen && hostImagen === hostOrigen && /^https:\/\//i.test(ORIGEN_API)) {
+      return codificarEspacios(limpia.replace(/^http:\/\//i, 'https://'));
+    }
     const permitido =
-      (typeof __DEV__ !== 'undefined' && __DEV__) || (ORIGEN_API !== '' && limpia.startsWith(ORIGEN_API));
-    return permitido ? limpia : null;
+      (typeof __DEV__ !== 'undefined' && __DEV__) ||
+      (ORIGEN_API !== '' && limpia.toLowerCase().startsWith(ORIGEN_API.toLowerCase()));
+    return permitido ? codificarEspacios(limpia) : null;
   }
+
   return null;
 }
 

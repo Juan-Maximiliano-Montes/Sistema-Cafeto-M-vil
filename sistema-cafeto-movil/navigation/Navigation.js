@@ -45,7 +45,7 @@ const PANTALLAS_EQUIPO = [
 ];
 
 export default function Navigation() {
-  const { cargando, necesitaVerificar, rol, tienePermiso } = useSesion();
+  const { cargando, necesitaVerificar, rol, equipo, tienePermiso } = useSesion();
   const { colores } = useTema();
   const [fuentesCargadas] = useFonts({
     Caveat_700Bold,
@@ -98,7 +98,7 @@ export default function Navigation() {
               </>
             )}
             {rol === 'equipo' &&
-              PANTALLAS_EQUIPO.filter((pantalla) => tienePermiso(pantalla.permiso)).map((pantalla) => (
+              PANTALLAS_EQUIPO.filter((pantalla) => equipo?.esTitular || tienePermiso(pantalla.permiso)).map((pantalla) => (
                 <Stack.Screen key={pantalla.nombre} name={pantalla.nombre} component={pantalla.componente} />
               ))}
           </>

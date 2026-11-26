@@ -31,10 +31,29 @@ import BuscadorProducto from '../src/componentes/BuscadorProducto';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
 import EstadoVacio from '../src/componentes/EstadoVacio';
+import { BotonAyuda } from '../src/componentes/HojaAyuda';
 import Opciones from '../src/componentes/Opciones';
 import SelectorFecha from '../src/componentes/SelectorFecha';
 import SelectorLote from '../src/componentes/SelectorLote';
 import { crearEstilosTarea } from '../src/componentes/estilosTarea';
+
+const AYUDA_CONTEO = [
+  {
+    icono: 'eye-off-outline',
+    titulo: 'Conteo a ciegas',
+    texto: 'La app no muestra el stock teórico mientras contás para evitar sesgos. Quien autoriza ve las diferencias.',
+  },
+  {
+    icono: 'create-outline',
+    titulo: 'Corregir un renglón',
+    texto: 'Si te equivocaste al anotar un producto, tocalo en la lista para reemplazar la cantidad antes de enviar.',
+  },
+  {
+    icono: 'calendar-outline',
+    titulo: 'Lotes no registrados',
+    texto: 'Si encontrás un envase cuyo lote no aparece en el sistema, elegí «Un lote que no figura» y cargá su vencimiento.',
+  },
+];
 
 const conStockPropio = (producto) => producto.stockActual !== null;
 
@@ -358,7 +377,18 @@ export default function Conteo() {
           />
         }
       >
-        <BarraVolver />
+        <BarraVolver
+          deshabilitado={trabajando}
+          derecha={
+            <BotonAyuda
+              titulo="Contar stock"
+              subtitulo="Reglas del inventario físico"
+              items={AYUDA_CONTEO}
+              nota="Solo puede haber un conteo abierto a la vez en el local."
+              deshabilitado={trabajando}
+            />
+          }
+        />
         <Text style={estilos.titulo}>Contar stock</Text>
         <Text style={estilos.subtitulo}>Recorré la góndola o el depósito y anotá lo que hay de verdad.</Text>
         <CuadroAyuda
@@ -381,7 +411,7 @@ export default function Conteo() {
       />
 
       <Modal visible={hoja !== null} transparent animationType="slide" onRequestClose={() => !trabajando && setHoja(null)}>
-        <KeyboardAvoidingView style={propios.velo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={propios.velo} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={propios.zonaCierre} onPress={() => !trabajando && setHoja(null)} accessibilityLabel="Cerrar" />
           {producto ? (
             <View style={propios.hoja}>

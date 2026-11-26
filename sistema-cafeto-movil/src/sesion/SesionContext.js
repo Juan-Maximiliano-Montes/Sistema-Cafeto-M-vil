@@ -122,7 +122,7 @@ export function SesionProvider({ children }) {
       nombreVisible: usuario?.displayName ?? '',
       versionPerfil,
       necesitaVerificar: !equipo && cuentaPropia && !esCliente,
-      tienePermiso: (codigo) => Boolean(equipo?.permisos?.includes(codigo)),
+      tienePermiso: (codigo) => Boolean(equipo?.esTitular || equipo?.permisos?.includes(codigo)),
       entrarComoEquipo,
       sesionVencida: olvidarEquipo,
       cerrarSesion,

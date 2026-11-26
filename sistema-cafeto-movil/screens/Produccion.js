@@ -13,13 +13,32 @@ import { conUnidad, usadoDeMas } from '../src/datos/ajustes';
 import { aIso, describirVencimiento, diasHasta, formatearFechaLarga } from '../src/utilidades/formato';
 import { hapticExito } from '../src/utilidades/haptics';
 import { limpiar } from '../src/utilidades/texto';
-import { leerCantidad, validarCantidad } from '../src/utilidades/validaciones';
+import { leerCantidad, validarCantidad, validarTextoCatalogo } from '../src/utilidades/validaciones';
 import BarraVolver from '../src/componentes/BarraVolver';
 import CampoTexto from '../src/componentes/CampoTexto';
 import CuadroAyuda from '../src/componentes/CuadroAyuda';
 import EstadoVacio from '../src/componentes/EstadoVacio';
+import { BotonAyuda } from '../src/componentes/HojaAyuda';
 import SelectorFecha from '../src/componentes/SelectorFecha';
 import { crearEstilosTarea } from '../src/componentes/estilosTarea';
+
+const AYUDA_PRODUCCION = [
+  {
+    icono: 'flame-outline',
+    titulo: 'Entrada directa y receta',
+    texto: 'Al cargar una tanda, suman las unidades producidas y se descuentan solos los insumos de su receta.',
+  },
+  {
+    icono: 'alert-circle-outline',
+    titulo: 'Insumos «Supera lo cargado»',
+    texto: 'Si un insumo sin lote queda por debajo de cero, la tanda entra igual y el insumo queda marcado «a revisar».',
+  },
+  {
+    icono: 'calendar-outline',
+    titulo: 'Insumos por lote',
+    texto: 'Los insumos con vencimiento (como lácteos) sí exigen contar con stock vigente cargado para producir.',
+  },
+];
 
 const ATAJOS = [
   { texto: 'Hoy', dias: 0 },
@@ -50,7 +69,7 @@ export default function Produccion() {
   const [cantidad, setCantidad] = useState('');
   const [vence, setVence] = useState(null);
   const [observacion, setObservacion] = useState('');
-  const [errores, setErrores] = useState({ cantidad: '', vence: '' });
+  const [errores, setErrores] = useState({ cantidad: '', vence: '', observacion: '' });
   const [errorGeneral, setErrorGeneral] = useState('');
   const [enviando, setEnviando] = useState(false);
   const clave = useRef(nuevaClaveOperacion());
@@ -93,9 +112,17 @@ export default function Produccion() {
     setCantidad('');
     setVence(null);
     setObservacion('');
-    setErrores({ cantidad: '', vence: '' });
+    setErrores({ cantidad: '', vence: '', observacion: '' });
     setErrorGeneral('');
   };
+
+  const validarObservacion = (valor) =>
+    validarTextoCatalogo(valor, {
+      etiqueta: 'La observación',
+      minimo: 2,
+      maximo: 120,
+      obligatorio: false,
+    });
 
   const enviar = async () => {
     if (!producible || enviando) return;
@@ -112,9 +139,10 @@ export default function Produccion() {
         : dias > DIAS_MAXIMOS
         ? 'Es dentro de más de dos años: revisá el año.'
         : '',
+      observacion: validarObservacion(observacion),
     };
     setErrores(nuevos);
-    if (nuevos.cantidad || nuevos.vence) return;
+    if (nuevos.cantidad || nuevos.vence || nuevos.observacion) return;
     setEnviando(true);
     try {
       const resultado = await registrarProduccion(
@@ -199,7 +227,17 @@ export default function Produccion() {
             />
           }
         >
-          <BarraVolver deshabilitado={enviando} />
+          <BarraVolver
+            deshabilitado={enviando}
+            derecha={
+              <BotonAyuda
+                titulo="Cargar producción"
+                subtitulo="Tandas elaboradas y descuento de insumos"
+                items={AYUDA_PRODUCCION}
+                deshabilitado={enviando}
+              />
+            }
+          />
           <Text style={estilos.titulo}>Cargar producción</Text>
           <Text style={estilos.subtitulo}>Una tanda de lo que se hace en el local: entra lo producido y salen los insumos de la receta.</Text>
 
@@ -296,7 +334,16 @@ export default function Produccion() {
                         icono="edit-3"
                         placeholder="Ej.: tanda de la mañana"
                         valor={observacion}
-                        alCambiar={setObservacion}
+                        alCambiar={(texto) => {
+                          setObservacion(texto);
+                          setErrores((anteriores) => ({ ...anteriores, observacion: '' }));
+                        }}
+                        alSalir={() => {
+                          if (limpiar(observacion)) {
+                            setErrores((anteriores) => ({ ...anteriores, observacion: validarObservacion(observacion) }));
+                          }
+                        }}
+                        error={errores.observacion}
                         maxLength={120}
                         editable={!enviando}
                       />

@@ -286,6 +286,49 @@ export function aOferta(crudo) {
   };
 }
 
+function aFidelizacionPanel(crudo) {
+  if (!crudo || typeof crudo !== 'object') return null;
+  const enteroNoNegativo = (valor) => {
+    const convertido = numero(valor);
+    return convertido !== null && convertido >= 0 ? Math.round(convertido) : null;
+  };
+  const clientesActivos = enteroNoNegativo(crudo.clientes_activos);
+  const canjesPeriodo = enteroNoNegativo(crudo.canjes_periodo);
+  const puntosEmitidosPeriodo = enteroNoNegativo(crudo.puntos_emitidos_periodo);
+  const beneficiosMasUsados = (Array.isArray(crudo.beneficios_mas_usados) ? crudo.beneficios_mas_usados : [])
+    .map((item) => {
+      const id = identificador(item?.id);
+      const titulo = texto(item?.titulo);
+      const usos = enteroNoNegativo(item?.usos);
+      if (!id || !titulo || usos === null) return null;
+      return {
+        id,
+        titulo,
+        tipo: item.tipo === 'CANJEABLE' ? 'CANJEABLE' : 'AUTOMATICO',
+        categoria: texto(item.categoria) || null,
+        usos,
+      };
+    })
+    .filter(Boolean);
+
+  if (
+    clientesActivos === null &&
+    canjesPeriodo === null &&
+    puntosEmitidosPeriodo === null &&
+    beneficiosMasUsados.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    periodo: texto(crudo.periodo) || 'Últimos 30 días',
+    clientesActivos,
+    canjesPeriodo,
+    puntosEmitidosPeriodo,
+    beneficiosMasUsados,
+  };
+}
+
 export function aPanel(crudo) {
   const datos = crudo && typeof crudo === 'object' ? crudo : {};
   return {
@@ -315,6 +358,7 @@ export function aPanel(crudo) {
         };
       })
       .filter(Boolean),
+    fidelizacion: aFidelizacionPanel(datos.fidelizacion),
   };
 }
 

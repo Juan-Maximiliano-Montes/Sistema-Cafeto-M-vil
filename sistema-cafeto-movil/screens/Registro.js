@@ -102,7 +102,14 @@ export default function Registro({ navigation }) {
 
   const alCambiar = (campo, setter) => (texto) => {
     setter(texto);
-    limpiarError(campo);
+    setErrores((anteriores) => ({
+      ...anteriores,
+      [campo]: '',
+      ...(campo === 'dni' &&
+      anteriores.telefono === 'Cargá tu teléfono o tu DNI: con uno de los dos te encuentran en la caja.'
+        ? { telefono: '' }
+        : {}),
+    }));
     setTocados((anteriores) => ({ ...anteriores, [campo]: false }));
     if (campo === 'correo') setCorreoYaRegistrado(false);
   };
@@ -249,7 +256,6 @@ export default function Registro({ navigation }) {
     setCreando(true);
     try {
       const credencial = await createUserWithEmailAndPassword(auth, correo.trim(), contrasena);
-      await updateProfile(credencial.user, { displayName: `${limpiar(nombre)} ${limpiar(apellido)}` }).catch(() => null);
       await AsyncStorage.setItem(
         `cafeto:perfil:${credencial.user.uid}`,
         JSON.stringify({
@@ -261,6 +267,7 @@ export default function Registro({ navigation }) {
           aceptaPromociones,
         })
       ).catch(() => null);
+      await updateProfile(credencial.user, { displayName: `${limpiar(nombre)} ${limpiar(apellido)}` }).catch(() => null);
       try {
         await sendEmailVerification(credencial.user);
       } catch (problema) {

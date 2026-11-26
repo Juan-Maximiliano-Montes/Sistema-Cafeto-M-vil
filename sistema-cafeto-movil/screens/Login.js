@@ -45,6 +45,7 @@ export default function Login({ navigation, route }) {
   const [recordarme, setRecordarme] = useState(false);
   const [errorIdentificador, setErrorIdentificador] = useState('');
   const [errorContrasena, setErrorContrasena] = useState('');
+  const [errorGeneral, setErrorGeneral] = useState('');
   const [cargando, setCargando] = useState(false);
   const [sinConexion, setSinConexion] = useState(false);
   const [legal, setLegal] = useState(null);
@@ -76,17 +77,20 @@ export default function Login({ navigation, route }) {
     if (route.params?.correo) {
       setIdentificador(route.params.correo);
       setErrorIdentificador('');
+      setErrorGeneral('');
     }
   }, [route.params?.correo]);
 
   const cambiarIdentificador = (texto) => {
     setIdentificador(filtrarCorreo(texto));
     setErrorIdentificador('');
+    setErrorGeneral('');
   };
 
   const cambiarContrasena = (texto) => {
     setContrasena(texto);
     setErrorContrasena('');
+    setErrorGeneral('');
   };
 
   const salirDeIdentificador = () => {
@@ -95,6 +99,7 @@ export default function Login({ navigation, route }) {
 
   const validarFormulario = () => {
     let esValido = true;
+    setErrorGeneral('');
 
     const problemaIdentificador = validarIdentificador(identificador, { obligatorio: true });
     if (problemaIdentificador) {
@@ -125,10 +130,10 @@ export default function Login({ navigation, route }) {
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
       case 'auth/user-not-found':
-        setErrorContrasena('Los datos ingresados no coinciden. Revisalos y probá de nuevo.');
+        setErrorGeneral('Los datos ingresados no coinciden. Revisá tu correo y tu contraseña.');
         break;
       case 'auth/too-many-requests':
-        setErrorContrasena('Demasiados intentos. Esperá unos minutos y probá de nuevo.');
+        setErrorGeneral('Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.');
         break;
       case 'auth/network-request-failed':
         avisar('error', 'Sin conexión', 'Revisá el wifi o los datos del teléfono.');
@@ -139,7 +144,7 @@ export default function Login({ navigation, route }) {
         avisar('advertencia', 'No disponible', 'Este método de acceso no está habilitado en Firebase.');
         break;
       default:
-        avisar('error', 'Error', `No pudimos iniciar sesión.\n\nCódigo: ${error?.code ?? 'desconocido'}`);
+        setErrorGeneral('No pudimos iniciar sesión en este momento. Probá de nuevo en un rato.');
     }
   };
 
@@ -159,13 +164,16 @@ export default function Login({ navigation, route }) {
     if (cargando || !validarFormulario()) return;
 
     setCargando(true);
+    setErrorGeneral('');
+    setErrorIdentificador('');
+    setErrorContrasena('');
     try {
       await guardarPreferenciaRecordarme();
       if (esModoCorreo) {
         await signInWithEmailAndPassword(auth, identificador.trim(), contrasena);
       } else {
         await entrarComoEquipo(normalizarUsuarioEquipo(identificador), contrasena);
-        avisar('exito', 'Listo', 'Entraste en modo equipo. Tus tareas están en la pestaña Gestión.');
+        avisar('exito', 'Listo', 'Entraste en modo equipo. Ya tenés tu panel operativo disponible.');
       }
     } catch (error) {
       if (!montado.current) return;
@@ -174,7 +182,9 @@ export default function Login({ navigation, route }) {
       } else if (esModoCorreo) {
         mostrarErrorDeFirebase(error);
       } else if (error?.estado === 400 || error?.estado === 401) {
-        setErrorContrasena('Los datos ingresados no coinciden. Revisalos y probá de nuevo.');
+        setErrorGeneral('Los datos ingresados no coinciden. Revisá tu usuario o DNI y tu contraseña.');
+      } else if (error?.estado === 403 || error?.estado === 429) {
+        setErrorGeneral(mensajeDeError(error));
       } else {
         avisar('error', 'No pudimos iniciar sesión', mensajeDeError(error));
       }
@@ -185,8 +195,15 @@ export default function Login({ navigation, route }) {
 
   const recuperarContrasena = async () => {
     const limpio = identificador.trim();
-    if (!limpio || !limpio.includes('@')) {
+    setErrorGeneral('');
+    if (!limpio) {
       setErrorIdentificador('Escribí el correo electrónico de tu cuenta para enviarte el enlace.');
+      return;
+    }
+    if (!limpio.includes('@')) {
+      setErrorGeneral(
+        'Si sos del equipo, pedile al administrador que restablezca tu contraseña desde la web. Si sos cliente, ingresá tu correo electrónico.'
+      );
       return;
     }
     const problemaCorreo = validarCorreo(limpio, { obligatorio: true });
@@ -198,10 +215,29 @@ export default function Login({ navigation, route }) {
     try {
       await sendPasswordResetEmail(auth, limpio);
       if (montado.current) {
-        avisar('exito', 'Revisá tu correo', `Te mandamos un enlace a ${limpio} para que elijas una contraseña nueva.`);
+        avisar(
+          'exito',
+          'Revisá tu correo',
+          `Si existe una cuenta con ${limpio}, te mandamos un enlace para que elijas una contraseña nueva.`
+        );
       }
     } catch (error) {
-      if (montado.current) mostrarErrorDeFirebase(error);
+      if (!montado.current) return;
+      if (error?.code === 'auth/user-not-found') {
+        avisar(
+          'exito',
+          'Revisá tu correo',
+          `Si existe una cuenta con ${limpio}, te mandamos un enlace para que elijas una contraseña nueva.`
+        );
+      } else if (error?.code === 'auth/invalid-email') {
+        setErrorIdentificador('El formato del correo no es válido.');
+      } else if (error?.code === 'auth/too-many-requests') {
+        setErrorGeneral('Pediste varios enlaces seguidos. Esperá unos minutos y probá de nuevo.');
+      } else if (esFaltaDeConexion(error)) {
+        avisar('error', 'Sin conexión', 'Revisá el wifi o los datos del teléfono.');
+      } else {
+        setErrorGeneral('No pudimos enviar el enlace ahora. Probá de nuevo en un rato.');
+      }
     }
   };
 
@@ -235,6 +271,13 @@ export default function Login({ navigation, route }) {
 
           <Text style={estilos.titulo}>Hola de nuevo</Text>
           <Text style={estilos.subtitulo}>Qué bueno verte.</Text>
+
+          {errorGeneral !== '' && (
+            <View style={estilos.errorGeneral} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Feather name="alert-circle" size={18} color={colores.peligro} />
+              <Text style={estilos.textoErrorGeneral}>{errorGeneral}</Text>
+            </View>
+          )}
 
           <CampoTexto
             etiqueta="Correo, usuario o DNI"
@@ -415,6 +458,24 @@ function crearEstilos(c) {
       color: c.textoSecundario,
       textAlign: 'center',
       marginBottom: 8,
+    },
+    errorGeneral: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      padding: 14,
+      marginTop: 8,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.bordePeligro,
+      backgroundColor: c.fondoPeligro,
+    },
+    textoErrorGeneral: {
+      flex: 1,
+      fontFamily: 'Inter_500Medium',
+      fontSize: 13.5,
+      lineHeight: 19,
+      color: c.texto,
     },
     filaOpciones: {
       flexDirection: 'row',
